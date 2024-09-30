@@ -1,0 +1,15 @@
+#:if defined("OMB_ARRAY_ALLOC_TYPE")
+#:else
+   #:set OMB_ARRAY_ALLOC_TYPE = "allocatable"
+#:endif
+#:if defined("OMB_ARRAY_ATTRIBUTES")
+#:else
+   #:set OMB_ARRAY_ATTRIBUTES = ""
+#:endif
+#:if defined("OMB_SIZE_TYPE")
+#:else
+   #:set OMB_SIZE_TYPE = "int64"
+#:endif
+
+#:set REALS = ["real32", "real64", "real128"]
+#:set ARRAY_IS_POINTER = bool("pointer" in "${OMB_ARRAY_ALLOC_TYPE}$".lower())

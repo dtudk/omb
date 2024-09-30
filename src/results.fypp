@@ -1,0 +1,83 @@
+#:include "common.fypp"
+
+module results_m
+
+   use iso_fortran_env, only: real64, ${OMB_SIZE_TYPE}$
+
+   implicit none
+
+   private
+
+   type, public :: results_t
+
+      ! Timing of execution
+      real(real64), allocatable :: times(:)
+      ! How many arrays are involved in the routine
+      integer :: narrays
+      ! Size of any single array
+      real(real64) :: array_mb
+
+      ! How many GFLOPS has been processed
+      real(real64) :: gflops
+      ! Bandwidth
+      real(real64) :: bandwidth_gbs
+
+   contains
+
+      procedure, pass :: update
+      procedure, pass :: time_max
+      procedure, pass :: time_min
+      procedure, pass :: time_avg
+      procedure, pass :: time_std
+
+   end type
+
+contains
+
+   subroutine update(this, narrays, n, elem_flop, elem_size)
+      class(results_t), intent(inout) :: this
+      integer :: narrays, elem_flop, elem_size
+      integer(${OMB_SIZE_TYPE}$) :: n
+
+      this%narrays = narrays
+      this%array_mb = real(n, real64)*elem_size/(8._real64*1024**2)
+      this%bandwidth_gbs = this%narrays*this%array_mb/this%time_min()/1024
+      this%gflops = elem_flop*real(n, real64)/this%time_min()/1024**3
+
+   end subroutine
+
+   function time_max(this) result(time)
+      class(results_t), intent(in) :: this
+      real(real64) :: time
+      time = maxval(this%times)
+   end function
+
+   function time_min(this) result(time)
+      class(results_t), intent(in) :: this
+      real(real64) :: time
+      time = minval(this%times)
+   end function
+
+   function time_avg(this) result(time)
+      class(results_t), intent(in) :: this
+      real(real64) :: time
+      time = sum(this%times)/size(this%times, 1)
+   end function
+
+   ! Calculate the standard deviation of the sample population.
+   ! Note that the sample population is not complete, hence this is
+   ! the Bessels corrected std.dev.
+   function time_std(this) result(std)
+      class(results_t), intent(in) :: this
+      real(real64) :: std, avg
+      integer :: i
+      avg = this%time_avg()
+      ! Calculate std.
+      std = 0._real64
+      do i = 1, size(this%times, 1)
+         std = std + (this%times(i) - avg)**2
+      end do
+      std = std/(size(this%times, 1) - 1)
+   end function
+
+end module results_m

@@ -1,0 +1,36 @@
+#:include "common.fypp"
+
+module options_m
+
+   use iso_fortran_env, only: int32, int64
+
+   implicit none
+
+   ! Specifics for handling options for the algorithms.
+   ! For instance, it can hold first-touch, whether warm-up
+   ! number of iterations, etc.
+   private
+
+   type, public :: option_kernel_t
+   end type
+
+   type, public, extends(option_kernel_t) :: option_kernel_do_t
+   end type
+
+   type, public, extends(option_kernel_t) :: option_kernel_workshare_t
+   end type
+
+   type, public, extends(option_kernel_t) :: option_kernel_taskloop_t
+      integer(${OMB_SIZE_TYPE}$) :: grainsize = 1
+   end type
+
+   type, public :: options_t
+
+      integer :: itt = 10
+      integer :: warmup_itt = 1
+      logical :: first_touch = .true.
+      class(option_kernel_t), pointer :: kernel => null()
+
+   end type
+
+end module

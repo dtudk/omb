@@ -1,0 +1,643 @@
+#:include "common.fypp"
+
+#:def TYPE_IS(name)
+   type is (${name}$)
+   !$omp single
+   call timing%start()
+   !$omp end single
+#:enddef
+
+module benchmarks_m
+
+   ! Define the different methods for benchmarks
+   use iso_fortran_env, only: real32, real64, real128
+   use iso_fortran_env, only: ${OMB_SIZE_TYPE}$
+
+   use options_m
+   use results_m, only: results_t
+   use timing_m, only: timing_t
+
+   implicit none
+   private
+
+   integer, public, parameter :: METHOD_NOT_SET = 0
+   integer, public, parameter :: METHOD_ADD = 1
+   integer, public, parameter :: METHOD_SCALE = 2
+   integer, public, parameter :: METHOD_COPY = 3
+   integer, public, parameter :: METHOD_TRIAD = 4
+   integer, public, parameter :: METHOD_SUM = 5
+   integer, public, parameter :: METHOD_AXPY = 6
+   integer, public, parameter :: METHOD_FILL = 7
+   integer, public, parameter :: METHOD_FALSE_SHARING_TRIAD = 8
+
+   #:for real in REALS
+      public :: bench_add_${real}$
+      public :: bench_scale_${real}$
+      public :: bench_copy_${real}$
+      public :: bench_triad_${real}$
+      public :: bench_sum_${real}$
+      public :: bench_axpy_${real}$
+      public :: bench_fill_${real}$
+      public :: bench_false_sharing_triad_${real}$
+   #:endfor
+
+   public :: benchmark_method
+   interface
+      subroutine benchmark_method(n, options, results)
+         use iso_fortran_env, only: ${OMB_SIZE_TYPE}$
+         use options_m, only: options_t
+         use results_m, only: results_t
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+      end subroutine
+   end interface
+
+   interface first_touch
+      #:for real in REALS
+         module procedure :: first_touch_${real}$
+      #:endfor
+   end interface
+
+   interface single_touch
+      #:for real in REALS
+         module procedure :: single_touch_${real}$
+      #:endfor
+   end interface
+
+   interface init_array
+      #:for real in REALS
+         module procedure :: init_array_${real}$
+      #:endfor
+   end interface
+
+contains
+
+   #:for real in REALS
+
+      subroutine first_touch_${real}$ (n, a)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         real(${real}$), intent(inout) :: a(n)
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+
+!$omp do private(i) schedule(runtime)
+         do i = 1, n
+            a(i) = 1.0_${real}$
+         end do
+!$omp end do
+
+      end subroutine
+
+      subroutine single_touch_${real}$ (n, a)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         real(${real}$), intent(inout) :: a(n)
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+
+!$omp single
+         do i = 1, n
+            a(i) = 1.0_${real}$
+         end do
+!$omp end single
+
+      end subroutine
+
+      subroutine init_array_${real}$ (n, a, options)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         real(${real}$), intent(inout) :: a(n)
+         type(options_t), intent(in):: options
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         real(${real}$) :: sum
+         integer :: itt
+
+         if (options%first_touch) then
+            call first_touch(n, a)
+         else
+            call single_touch(n, a)
+         end if
+
+         do itt = 1, options%warmup_itt
+            sum = 0._${real}$
+!$omp do private(i) schedule(runtime)
+            do i = 1, n
+               sum = sum + a(i)
+            end do
+!$omp end do
+         end do
+
+      end subroutine
+
+      subroutine bench_sum_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$) :: sum_a
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         #:if ARRAY_IS_POINTER
+            nullify (a)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n))
+
+!$omp parallel private(itt,i) shared(n,a,sum_a)
+
+         call init_array(n, a, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime) reduction(+:sum_a)
+               do i = 1, n
+                  sum_a = sum_a + a(i)
+               end do
+!$omp end do
+
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               sum_a = sum(a)
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize) reduction(+:sum_a)
+               do i = 1, n
+                  sum_a = sum_a + a(i)
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(1, n, 1, storage_size(1.0_${real}$))
+
+         deallocate (a)
+
+      end subroutine
+
+      subroutine bench_fill_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$) :: fill
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         #:if ARRAY_IS_POINTER
+            nullify (a)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n))
+         fill = 3._${real}$
+
+!$omp parallel private(itt,i) shared(n,a,fill)
+
+         call init_array(n, a, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+               do i = 1, n
+                  a(i) = fill
+               end do
+!$omp end do
+
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               a(:) = fill
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize)
+               do i = 1, n
+                  a(i) = fill
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(1, n, 0, storage_size(1.0_${real}$))
+
+         deallocate (a)
+
+      end subroutine
+
+      subroutine bench_copy_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
+         #:if ARRAY_IS_POINTER
+            nullify (a, b)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n), b(n))
+
+!$omp parallel private(itt,i) shared(n,a,b)
+
+         call init_array(n, a, options)
+         call init_array(n, b, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+               do i = 1, n
+                  a(i) = b(i)
+               end do
+!$omp end do
+
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               a(:) = b(:)
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize)
+               do i = 1, n
+                  a(i) = b(i)
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(2, n, 0, storage_size(1.0_${real}$))
+
+         deallocate (a, b)
+
+      end subroutine
+
+      subroutine bench_scale_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$) :: scale
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
+         #:if ARRAY_IS_POINTER
+            nullify (a, b)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n), b(n))
+         scale = 2._${real}$
+
+!$omp parallel private(itt,i) shared(n,a,b,scale)
+
+         call init_array(n, a, options)
+         call init_array(n, b, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+               do i = 1, n
+                  a(i) = scale*b(i)
+               end do
+!$omp end do
+
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               a(:) = scale*b(:)
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize)
+               do i = 1, n
+                  a(i) = scale*b(i)
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(2, n, 1, storage_size(1.0_${real}$))
+
+         deallocate (a, b)
+
+      end subroutine
+
+      subroutine bench_add_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+         #:if ARRAY_IS_POINTER
+            nullify (a, b, c)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n), b(n), c(n))
+
+!$omp parallel private(itt,i) shared(n,a,b,c)
+
+         call init_array(n, a, options)
+         call init_array(n, b, options)
+         call init_array(n, c, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+               do i = 1, n
+                  a(i) = b(i) + c(i)
+               end do
+!$omp end do
+
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               a(i) = b(i) + c(i)
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize)
+               do i = 1, n
+                  a(i) = b(i) + c(i)
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(3, n, 1, storage_size(1.0_${real}$))
+
+         deallocate (a, b, c)
+
+      end subroutine
+
+      subroutine bench_triad_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$) :: scale
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+         #:if ARRAY_IS_POINTER
+            nullify (a, b, c)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n), b(n), c(n))
+         scale = 2._${real}$
+
+!$omp parallel private(itt,i) shared(n,a,b,c,scale)
+
+         call init_array(n, a, options)
+         call init_array(n, b, options)
+         call init_array(n, c, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end do
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               a(:) = b(:) + scale*c(:)
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(3, n, 2, storage_size(1.0_${real}$))
+
+         deallocate (a, b, c)
+
+      end subroutine
+
+      subroutine bench_axpy_${real}$ (n, options, results)
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer :: itt
+         type(timing_t) :: timing
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         real(${real}$) :: scale
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
+         #:if ARRAY_IS_POINTER
+            nullify (a, b)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n), b(n))
+         scale = 2._${real}$
+
+!$omp parallel private(itt) shared(n,a,b,scale)
+
+         call init_array(n, a, options)
+         call init_array(n, b, options)
+
+         do itt = 1, options%itt
+
+            select type (kernel => options%kernel)
+
+               @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+               do i = 1, n
+                  a(i) = a(i) + scale*b(i)
+               end do
+!$omp end do
+
+               @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+               a(:) = scale*b(:)
+!$omp end workshare
+
+               @:TYPE_IS(option_kernel_taskloop_t)
+!$omp taskloop private(i) grainsize(kernel%grainsize)
+               do i = 1, n
+                  a(i) = a(i) + scale*b(i)
+               end do
+!$omp end taskloop
+
+            end select
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(2, n, 2, storage_size(1.0_${real}$))
+
+         deallocate (a, b)
+
+      end subroutine
+
+      subroutine bench_false_sharing_triad_${real}$ (n, options, results)
+         use omp_lib, only: omp_get_num_threads, omp_get_thread_num
+         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_SIZE_TYPE}$) :: i
+         integer :: nthreads, id
+         integer :: itt
+         type(timing_t) :: timing
+
+         real(${real}$) :: scale
+         real(${real}$), dimension(:, :), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+         #:if ARRAY_IS_POINTER
+            nullify (a, b, c)
+         #:endif
+!$omp parallel shared(nthreads)
+!$omp single
+         nthreads = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+
+         ! Allocate etc.
+         allocate (a(nthreads, n), b(nthreads, n), c(nthreads, n))
+         scale = 2._${real}$
+
+!$omp parallel private(itt,i,id) shared(n,a,b,scale,nthreads)
+
+         ! Direct call to omit interface constructs
+         call init_array_${real}$ (nthreads*n, a, options)
+         call init_array_${real}$ (nthreads*n, b, options)
+         call init_array_${real}$ (nthreads*n, c, options)
+
+         ! Get local thread-id
+         id = omp_get_thread_num() + 1
+
+         do itt = 1, options%itt
+
+            ! To traverse everything, we don't need an OMP loop
+            ! Each thread accesses its own space.
+            do i = 1, n
+               a(id, i) = b(id, i) + scale*c(id, i)
+            end do
+
+!$omp single
+            call timing%stop()
+            results%times(itt) = timing%time
+!$omp end single
+
+         end do
+
+!$omp end parallel
+
+         call results%update(3, nthreads*n, 2, storage_size(1.0_${real}$))
+
+         deallocate (a, b, c)
+
+      end subroutine
+
+   #:endfor
+
+end module benchmarks_m

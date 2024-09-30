@@ -1,0 +1,587 @@
+#:include "common.fypp"
+
+program main
+
+   ! Benchmark tests for OpenMP threads.
+   ! This small utility program allows one to
+   ! benchmark how read/write/read+write access
+   ! in done with OpenMP.
+   use omp_lib
+   use iso_fortran_env, only: OUTPUT_UNIT, ERROR_UNIT
+   use iso_fortran_env, only: real32, real64, real128
+   use iso_fortran_env, only: int32, int64
+
+   ! This is a pure fortran code, but should be able
+   ! to give same results for C/C++.
+   ! Generally, the OpenMP implementation is a bit
+   ! behind for fortran compilers.
+   use timing_m, only: timing_t
+   use options_m
+   use results_m, only: results_t
+   use benchmarks_m ! ALL
+
+   implicit none
+
+   character(len=*), parameter :: debug_fmt_a = "(a,t35,':',256(tr1,a))"
+   character(len=*), parameter :: debug_fmt_i = "(a,t35,':',256(tr1,i0))"
+   character(len=*), parameter :: debug_fmt_l = "(a,t35,':',256(tr1,l0))"
+   character(len=*), parameter :: debug_fmt_e = "(a,t35,':',256(tr1,e0.10))"
+   integer :: method = METHOD_TRIAD
+
+   integer, parameter :: DTYPE_REAL32 = 0
+   integer, parameter :: DTYPE_REAL64 = 1
+   integer, parameter :: DTYPE_REAL128 = 2
+   integer :: dtype = DTYPE_REAL64
+
+   procedure(benchmark_method), pointer :: benchmark => null()
+
+   character(len=64) :: method_str
+   character(len=1) :: dtype_str
+   integer :: elem_size
+   integer(int64) :: big_n
+   integer(${OMB_SIZE_TYPE}$) :: n, n_dim2
+
+   ! We need to at least have array sizes on the order of 4 times the cache size
+   ! to move the entire array out and ensure no caching is there...
+   ! So, lets just take 512MB for safety.
+   ! This means that each array takes up 512MB of memory
+   real(real64) :: bytes = 512._real64*1024**2
+   type(options_t) :: options
+   type(results_t) :: results
+
+   logical :: debug = .false.
+   logical :: info_omp = .false.
+
+   block
+      integer :: nargs
+      integer :: iarg
+      integer :: len_arg
+      character(len=256) :: arg
+      integer :: idx, istr_size
+      character(len=2), parameter :: STR_SIZES(6) = ["kb", "KB", "mb", "MB", "gb", "GB"]
+      integer, parameter :: INT_SIZES(6) = [1024, 1024, 1024**2, 1024**2, 1024**3, 1024**3]
+
+      nargs = command_argument_count()
+      iarg = 1
+      do while (iarg <= nargs)
+
+         ! Get current argument
+         call read_and_check_next_arg(iarg, arg)
+
+         select case (arg)
+         case ("-debug", "--debug")
+            debug = .true.
+
+         case ("-omp", "--omp")
+            info_omp = .true.
+
+         case ("-kernel", "--kernel")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, -kernel has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            select case (arg)
+            case ("do")
+               allocate (option_kernel_do_t::options%kernel)
+            case ("workshare")
+               allocate (option_kernel_workshare_t::options%kernel)
+            case ("taskloop")
+               allocate (option_kernel_taskloop_t::options%kernel)
+            end select
+
+         case ("fill")
+            method = METHOD_FILL
+
+         case ("sum")
+            method = METHOD_SUM
+
+         case ("add")
+            method = METHOD_ADD
+
+         case ("copy")
+            method = METHOD_COPY
+
+         case ("scale")
+            method = METHOD_SCALE
+
+         case ("triad", "triadd")
+            method = METHOD_TRIAD
+
+         case ("axpy")
+            method = METHOD_AXPY
+
+         case ("daxpy")
+            dtype = DTYPE_REAL64
+            method = METHOD_AXPY
+
+         case ("saxpy")
+            dtype = DTYPE_REAL32
+            method = METHOD_AXPY
+
+         case ("false-sharing-triad", "false-sharing")
+            method = METHOD_FALSE_SHARING_TRIAD
+
+         case ("-dtype", "--dtype")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, -dtype has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            select case (arg)
+            case ("real32", "32")
+               dtype = DTYPE_REAL32
+
+            case ("real64", "64")
+               dtype = DTYPE_REAL64
+
+            case ("real128", "128")
+               dtype = DTYPE_REAL128
+
+            case default
+               write (ERROR_UNIT, *) "-dtype argument is not one of [real32/32, real64/64, real128/128]"
+               stop 3
+
+            end select
+
+         case ("-first-touch", "--first-touch", "-ft")
+            options%first_touch = .true.
+
+         case ("-no-first-touch", "--no-first-touch", "-nft")
+            options%first_touch = .false.
+
+         case ("-warmup", "--warmup")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, -warmup-itt has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            read (arg, *) options%warmup_itt
+
+         case ("-itt", "--itt")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, -warmup-itt has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            read (arg, *) options%itt
+
+         case ("-n", "--n")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, -n has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            n = 0
+            ! We need to check if kb/kB, mb/MB, gb/GB is in the arg
+            do istr_size = 1, size(STR_SIZES)
+               idx = index(trim(arg), STR_SIZES(istr_size))
+               if (idx > 0) then
+                  if (debug) then
+                     write (OUTPUT_UNIT, *) "Converting", trim(arg)
+                     write (OUTPUT_UNIT, *) "To unit = ", STR_SIZES(istr_size)
+                  end if
+
+                  arg(idx:idx + 1) = " "
+                  read (arg, *) bytes
+                  ! this converts 10MB to
+                  ! 10 * 1024**2
+                  bytes = bytes*INT_SIZES(istr_size)
+                  n = 1
+                  exit
+               end if
+            end do
+
+            if (n == 0) then
+               write (ERROR_UNIT, *) "Could not interpret your -n argument: ", trim(arg)
+               stop 4
+            end if
+
+         case default
+
+            write (ERROR_UNIT, *) "Unknown argument: ", trim(arg)
+            stop 1
+
+         end select
+
+         iarg = iarg + 1
+      end do
+
+   end block
+
+   block
+
+      ! Correct OpenMP defaults
+      character(len=256) :: arg
+      integer :: i
+
+      call get_environment_variable("OMP_SCHEDULE", arg, i)
+      if (i <= 0) then
+         ! schedule not set, do not rely on the implementation specific
+         ! set it to static
+         call omp_set_schedule(OMP_SCHED_STATIC, 0)
+      end if
+
+   end block
+
+   if (.not. associated(options%kernel)) then
+      ! default to the DO kernel
+      allocate (option_kernel_do_t::options%kernel)
+   end if
+
+   ! Generally, we will only use a single 2nd dimension.
+   ! Only for false-sharing do we need a 2nd dimension.
+   n_dim2 = 1
+
+   ! At this point, `bytes` is some size in bytes
+   ! Lets convert this to the number of elements for the given dtype
+   select case (dtype)
+   case (DTYPE_REAL32)
+      dtype_str = "f"
+      elem_size = storage_size(1._real32)
+      if (debug) write (OUTPUT_UNIT, debug_fmt_a) "dtype", "real32"
+   case (DTYPE_REAL64)
+      dtype_str = "d"
+      elem_size = storage_size(1._real64)
+      if (debug) write (OUTPUT_UNIT, debug_fmt_a) "dtype", "real64"
+   case (DTYPE_REAL128)
+      dtype_str = "q"
+      elem_size = storage_size(1._real128)
+      if (debug) write (OUTPUT_UNIT, debug_fmt_a) "dtype", "real128"
+   end select
+   if (debug) then
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_size
+      write (OUTPUT_UNIT, debug_fmt_i) "target_bytes [B]", nint(bytes, int64)
+   end if
+
+   ! Store in safety variable
+   big_n = nint(bytes*8/elem_size, int64)
+   if (big_n > huge(n)) then
+      write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64!"
+      stop 20
+   end if
+   n = big_n
+
+   ! OpenMP information
+   if (info_omp) then
+      call show_info_omp()
+   end if
+
+   #:def CASE_DTYPE_BENCHMARK(name)
+      select case (dtype)
+         #:for real in REALS
+            case (DTYPE_${real.upper()}$)
+            benchmark => ${name}$_${real}$
+         #:endfor
+      end select
+   #:enddef CASE_DTYPE_BENCHMARK
+
+   select case (method)
+   case (METHOD_NOT_SET)
+      write (ERROR_UNIT, *) "No method defined, cannot run benchmark!"
+      stop 10
+
+   case (METHOD_ADD)
+      method_str = "add"
+
+      @:CASE_DTYPE_BENCHMARK(bench_add)
+
+   case (METHOD_SCALE)
+      method_str = "scale"
+
+      @:CASE_DTYPE_BENCHMARK(bench_scale)
+
+   case (METHOD_COPY)
+      method_str = "copy"
+
+      @:CASE_DTYPE_BENCHMARK(bench_copy)
+
+   case (METHOD_TRIAD)
+      method_str = "triad"
+
+      @:CASE_DTYPE_BENCHMARK(bench_triad)
+
+   case (METHOD_SUM)
+      method_str = "sum"
+
+      @:CASE_DTYPE_BENCHMARK(bench_sum)
+
+   case (METHOD_AXPY)
+      method_str = "axpy"
+
+      @:CASE_DTYPE_BENCHMARK(bench_axpy)
+
+   case (METHOD_FILL)
+      method_str = "fill"
+
+      @:CASE_DTYPE_BENCHMARK(bench_fill)
+
+   case (METHOD_FALSE_SHARING_TRIAD)
+      method_str = "falsesharing"
+
+      ! Correct n, so we have this per-thread
+!$omp parallel shared(n_dim2)
+!$omp single
+      n_dim2 = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+
+      ! Reduce n since the method multiplies by nthreads
+      n = max(1, n/n_dim2)
+
+      @:CASE_DTYPE_BENCHMARK(bench_false_sharing_triad)
+
+   end select
+
+   method_str = trim(method_str)//":"//dtype_str
+
+   if (debug) then
+      big_n = n*n_dim2
+      write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
+      select type (kernel => options%kernel)
+      type is (option_kernel_do_t)
+         write (OUTPUT_UNIT, "(a)") "do"
+      type is (option_kernel_workshare_t)
+         write (OUTPUT_UNIT, "(a)") "workshare"
+      type is (option_kernel_taskloop_t)
+         write (OUTPUT_UNIT, "(a)") "taskloop"
+      end select
+      write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
+      write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
+      write (OUTPUT_UNIT, debug_fmt_e) "array_size [MB]", real(big_n, real64)*elem_size/(8*1024**2)
+      write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
+      write (OUTPUT_UNIT, debug_fmt_i) "warmup_itt", options%warmup_itt
+      write (OUTPUT_UNIT, debug_fmt_i) "itt", options%itt
+   end if
+
+   ! Allocate the timings
+   allocate (results%times(options%itt))
+
+   call benchmark(n, options, results)
+
+   write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
+   select type (kernel => options%kernel)
+   type is (option_kernel_do_t)
+      write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
+   type is (option_kernel_workshare_t)
+      write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
+   type is (option_kernel_taskloop_t)
+      write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
+   class default
+      write (ERROR_UNIT, *) "Unknown kernel specification"
+      stop 5
+   end select
+   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_min()
+   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_avg()
+   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_std()
+   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_max()
+   write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%array_mb
+   write (OUTPUT_UNIT, "(tr1,f0.3)", advance="no") results%bandwidth_gbs
+   write (OUTPUT_UNIT, "(tr1,f0.3)", advance="no") results%gflops
+   write (OUTPUT_UNIT, *) ""
+
+   deallocate (results%times)
+
+contains
+
+   subroutine read_and_check_next_arg(iarg, arg)
+      integer, intent(in) :: iarg
+      character(len=*), intent(inout) :: arg
+      integer :: len_arg
+
+      arg = " "
+      call get_command_argument(iarg, arg, length=len_arg)
+
+      if (len_arg > len(arg)) then
+         write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Argument", iarg, "is too long! (>256)"
+         stop 2
+      end if
+
+   end subroutine
+
+   subroutine show_info_omp()
+
+      ! If you ever have more places than 256 (threads etc.)
+      ! then bump up the values below
+      character(len=*), parameter :: omp_fmt_i = "(a,t35,':',256(tr1,i0))"
+      character(len=*), parameter :: omp_fmt_l = "(a,t35,':',256(tr1,l0))"
+      character(len=*), parameter :: omp_fmt_a = "(a,t35,':',256(tr1,a))"
+      character(len=*), parameter :: omp_fmt_p_i = "(a,t28,'[',i0,']',t35,':',256(tr1,i0))"
+      character(len=*), parameter :: omp_fmt_p_ids = "(a,t28,'[',i0,']',t35,':',tr1,256(i0,:,','))"
+      character(len=*), parameter :: omp_fmt_t_i = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,i0))"
+      character(len=*), parameter :: omp_fmt_t_ids = "('omp ','[',i0,']',tr1,a,t35,':',tr1,256(i0,:,','))"
+      character(len=*), parameter :: omp_fmt_t_a = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,a))"
+      character(len=2048) :: affinity_fmt, string
+      integer :: i, n, idx, chunk
+      integer :: thread, io_thread
+      integer :: proc_ids(2048)
+      integer(OMP_SCHED_KIND) :: sched
+      integer(OMP_PROC_BIND_KIND) :: proc_bind
+
+      ! It is only defined outside of parallel regions
+      ! Inside parallel regions, it is implementation specific
+      string = " "
+      affinity_fmt = " "
+      i = omp_get_affinity_format(affinity_fmt)
+      if (i > len(affinity_fmt)) then
+         write (ERROR_UNIT, '(a,tr1,i0,tr1,a)') "Affinity format size is not big enough", i
+         stop 101
+      end if
+
+!$omp parallel default(private) shared(affinity_fmt)
+
+      ! Generic OMP information
+
+!$omp single
+      write (OUTPUT_UNIT, omp_fmt_i) "omp max_threads", omp_get_max_threads()
+      write (OUTPUT_UNIT, omp_fmt_i) "omp num_threads", omp_get_num_threads()
+      write (OUTPUT_UNIT, omp_fmt_i) "omp num_procs", omp_get_num_procs()
+      write (OUTPUT_UNIT, omp_fmt_i) "omp thread_limit", omp_get_thread_limit()
+
+      call get_environment_variable("OMP_SCHEDULE", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_SCHEDULE", trim(adjustl(string))
+      call get_environment_variable("OMP_STACKSIZE", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_STACKSIZE", trim(adjustl(string))
+      call get_environment_variable("OMP_WAIT_POLICY", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_WAIT_POLICY", trim(adjustl(string))
+      call get_environment_variable("OMP_NESTED", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_NESTED", trim(adjustl(string))
+      call get_environment_variable("OMP_TARGET_OFFLOAD", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_TARGET_OFFLOAD", trim(adjustl(string))
+      call get_environment_variable("OMP_TOOL", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_TOOL", trim(adjustl(string))
+      call get_environment_variable("OMP_ALLOCATOR", string, i)
+      write (OUTPUT_UNIT, omp_fmt_a) "omp OMP_ALLOCATOR", trim(adjustl(string))
+
+      write (OUTPUT_UNIT, omp_fmt_a) "omp affinity_format", trim(adjustl(affinity_fmt))
+
+      call omp_get_schedule(sched, chunk)
+      select case (sched)
+      case (OMP_SCHED_STATIC)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp schedule", "static"
+      case (OMP_SCHED_DYNAMIC)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp schedule", "dynamic"
+      case (OMP_SCHED_GUIDED)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp schedule", "guided"
+      case (OMP_SCHED_AUTO)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp schedule", "auto"
+         !case ( OMP_SCHED_MONOTONIC )
+         !   write(OUTPUT_UNIT,omp_fmt_a) "omp schedule", "monotonic"
+      case default
+         write (OUTPUT_UNIT, omp_fmt_i) "omp schedule", sched
+      end select
+      write (OUTPUT_UNIT, omp_fmt_i) "omp schedule_chunk", chunk
+
+      if (omp_get_dynamic()) then
+         write (OUTPUT_UNIT, omp_fmt_a) "omp dynamic", "true"
+      else
+         write (OUTPUT_UNIT, omp_fmt_a) "omp dynamic", "false"
+      end if
+
+      proc_bind = omp_get_proc_bind()
+      select case (proc_bind)
+      case (OMP_PROC_BIND_FALSE)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp proc_bind", "false"
+      case (OMP_PROC_BIND_TRUE)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp proc_bind", "true"
+      case (OMP_PROC_BIND_MASTER)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp proc_bind", "master"
+      case (OMP_PROC_BIND_CLOSE)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp proc_bind", "close"
+      case (OMP_PROC_BIND_SPREAD)
+         write (OUTPUT_UNIT, omp_fmt_a) "omp proc_bind", "spread"
+      case default
+         write (OUTPUT_UNIT, omp_fmt_i) "omp proc_bind", proc_bind
+      end select
+
+      write (OUTPUT_UNIT, omp_fmt_i) "omp num_devices", omp_get_num_devices()
+      write (OUTPUT_UNIT, omp_fmt_i) "omp default_device", omp_get_default_device()
+      write (OUTPUT_UNIT, omp_fmt_i) "omp device_num", omp_get_device_num()
+
+      write (OUTPUT_UNIT, omp_fmt_i) "omp num_teams", omp_get_num_teams()
+      write (OUTPUT_UNIT, omp_fmt_i) "omp team_num", omp_get_team_num()
+
+      write (OUTPUT_UNIT, omp_fmt_i) "omp num_places", omp_get_num_places()
+      do i = 0, omp_get_num_places() - 1
+
+         n = omp_get_place_num_procs(i)
+         write (OUTPUT_UNIT, omp_fmt_p_i) "omp place_num_procs", i, n
+         call omp_get_place_proc_ids(i, proc_ids)
+         write (OUTPUT_UNIT, omp_fmt_p_ids) "omp place_proc_ids", i, proc_ids(1:n)
+
+      end do
+
+      write (OUTPUT_UNIT, *) ! newline
+
+      flush OUTPUT_UNIT
+!$omp end single
+      flush OUTPUT_UNIT
+
+      ! Thread information
+
+      thread = omp_get_thread_num()
+      do io_thread = 0, omp_get_max_threads() - 1
+         if (io_thread == thread) then
+
+            i = omp_capture_affinity(string, "%H")
+            write (OUTPUT_UNIT, omp_fmt_t_a) thread, "host", trim(adjustl(string))
+
+            i = omp_capture_affinity(string, "%P")
+            write (OUTPUT_UNIT, omp_fmt_t_a) thread, "process_id", trim(adjustl(string))
+
+            i = omp_capture_affinity(string, "%i")
+            write (OUTPUT_UNIT, omp_fmt_t_a) thread, "native_thread_id", trim(adjustl(string))
+
+            i = omp_capture_affinity(string, "%A")
+            write (OUTPUT_UNIT, omp_fmt_t_a) thread, "affinity", trim(adjustl(string))
+
+            i = omp_capture_affinity(string, affinity_fmt)
+            write (OUTPUT_UNIT, omp_fmt_t_a) thread, "capture_affinity", trim(adjustl(string))
+
+            n = omp_get_partition_num_places()
+            write (OUTPUT_UNIT, omp_fmt_t_i) thread, "partition_num_places", n
+
+            call omp_get_partition_place_nums(proc_ids)
+            write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "partition_place_nums", proc_ids(1:n)
+
+            i = omp_get_place_num()
+            n = omp_get_place_num_procs(i)
+            write (OUTPUT_UNIT, omp_fmt_t_i) thread, "place_num_procs", n
+            call omp_get_place_proc_ids(i, proc_ids)
+            write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "place_proc_ids", proc_ids(1:n)
+
+         end if
+!$omp barrier
+         flush OUTPUT_UNIT
+      end do
+
+!$omp end parallel
+
+   end subroutine
+
+end program
