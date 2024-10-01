@@ -20,6 +20,11 @@ if [ -z "$OMP_SCHEDULE" ]; then
   export OMP_SCHEDULE=static
 fi
 
+loop=1
+if [ "$1" == "no-loop" ]; then
+  loop=0
+  shift
+fi
 
 # Create a nested loop-construct based on the OMP_PLACES.
 # Currently, only the comma-separated one is acceptable.
@@ -152,10 +157,7 @@ loop_bench_places() {
   return $?
 }
 
-# Start our loop
-loop_bench_places
-while [ $? -eq 0 ]; do
-
+function run_bench_places {
   OMP_PLACES=
   for id in ${bench_places[@]}
   do
@@ -167,6 +169,14 @@ while [ $? -eq 0 ]; do
   # Write out so it can be tabularized
   # Remove initial `,`, then run!
   OMP_PLACES="${OMP_PLACES:1}" $OMB_EXE $@
+}
 
+# Start our loop
+loop_bench_places
+while [ $? -eq 0 ]; do
+
+  run_bench_places $@
+
+  [ $loop -eq 0 ] && break
   loop_bench_places
 done
