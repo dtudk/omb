@@ -521,12 +521,16 @@ contains
          write (OUTPUT_UNIT, omp_fmt_i) "omp proc_bind", proc_bind
       end select
 
-      write (OUTPUT_UNIT, omp_fmt_i) "omp num_devices", omp_get_num_devices()
-      write (OUTPUT_UNIT, omp_fmt_i) "omp default_device", omp_get_default_device()
-      write (OUTPUT_UNIT, omp_fmt_i) "omp device_num", omp_get_device_num()
+      #:if OMB_OMP_DEVICE > 0
+         write (OUTPUT_UNIT, omp_fmt_i) "omp num_devices", omp_get_num_devices()
+         write (OUTPUT_UNIT, omp_fmt_i) "omp default_device", omp_get_default_device()
+         write (OUTPUT_UNIT, omp_fmt_i) "omp device_num", omp_get_device_num()
+      #:endif
 
-      write (OUTPUT_UNIT, omp_fmt_i) "omp num_teams", omp_get_num_teams()
-      write (OUTPUT_UNIT, omp_fmt_i) "omp team_num", omp_get_team_num()
+      #:if OMB_OMP_TEAMS > 0
+         write (OUTPUT_UNIT, omp_fmt_i) "omp num_teams", omp_get_num_teams()
+         write (OUTPUT_UNIT, omp_fmt_i) "omp team_num", omp_get_team_num()
+      #:endif
 
       write (OUTPUT_UNIT, omp_fmt_i) "omp num_places", omp_get_num_places()
       do i = 0, omp_get_num_places() - 1
@@ -565,11 +569,13 @@ contains
             i = omp_capture_affinity(string, affinity_fmt)
             write (OUTPUT_UNIT, omp_fmt_t_a) thread, "capture_affinity", trim(adjustl(string))
 
-            n = omp_get_partition_num_places()
-            write (OUTPUT_UNIT, omp_fmt_t_i) thread, "partition_num_places", n
+            #:if OMB_OMP_PARTITION > 0
+               n = omp_get_partition_num_places()
+               write (OUTPUT_UNIT, omp_fmt_t_i) thread, "partition_num_places", n
 
-            call omp_get_partition_place_nums(proc_ids)
-            write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "partition_place_nums", proc_ids(1:n)
+               call omp_get_partition_place_nums(proc_ids)
+               write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "partition_place_nums", proc_ids(1:n)
+            #:endif
 
             i = omp_get_place_num()
             n = omp_get_place_num_procs(i)

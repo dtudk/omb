@@ -43,9 +43,10 @@ include(cmake/ombDefaultFlags.cmake)
 # Now figure out how the tools should be used.
 
 
-
 find_package(OpenMP REQUIRED
   COMPONENTS Fortran)
+
+include(cmake/ombOpenMPOptions.cmake)
 
 # create library.
 add_subdirectory(src)
