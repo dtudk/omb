@@ -3,7 +3,7 @@
 
 _prefix="omb: "
 # Driver for creating comprehensive benchmarks.
-[ -z "$OMB_EXE" ] && OMB_EXE=$(which omb)
+[ -z "$OMB_EXE" ] && OMB_EXE=$(which omb 2>/dev/null)
 [ -z "$OMB_EXE" ] && OMB_EXE=$(dirname $(readlink -f "$0"))/omb
 if [ ! -x "$OMB_EXE" ]; then
   echo "$_prefix OMB_EXE=$OMB_EXE"

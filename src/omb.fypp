@@ -58,7 +58,7 @@ program main
       integer :: len_arg
       character(len=256) :: arg
       integer :: idx, istr_size
-      character(len=2), parameter :: STR_SIZES(6) = ["kb", "KB", "mb", "MB", "gb", "GB"]
+      character(len=2), parameter :: STR_SIZES(6) = ["kb", "k", "mb", "m", "gb", "g"]
       integer, parameter :: INT_SIZES(6) = [1024, 1024, 1024**2, 1024**2, 1024**3, 1024**3]
 
       nargs = command_argument_count()
@@ -196,9 +196,11 @@ program main
             ! Read next arg
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
+            ! Lower-case it (so kb == KB == kB).
+            arg = lcase(trim(arg))
 
             n = 0
-            ! We need to check if kb/kB, mb/MB, gb/GB is in the arg
+            ! We need to check if kb/kB/k, mb/MB/m, gb/GB/g is in the arg
             do istr_size = 1, size(STR_SIZES)
                idx = index(trim(arg), STR_SIZES(istr_size))
                if (idx > 0) then
@@ -583,5 +585,30 @@ contains
 !$omp end parallel
 
    end subroutine
+
+   pure function lcase(str)
+      character(len=*), intent(in) :: str
+      character(len=len(str)) :: lcase
+      character(len=*), parameter :: upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+      character(len=*), parameter :: lower = 'abcdefghijklmnopqrstuvwxyz'
+
+      integer :: ic, i
+
+      ! Capitalize each letter if it is lowercase
+      lcase = str
+      i = scan(lcase, upper)
+      do while (i > 0)
+         ! Get the conversion index
+         ic = index(upper, lcase(i:i))
+         lcase(i:i) = lower(ic:ic)
+         ic = scan(lcase(i + 1:), upper)
+         if (ic > 0) then
+            i = i + ic
+         else
+            i = 0
+         end if
+      end do
+
+   end function lcase
 
 end program
