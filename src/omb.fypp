@@ -26,6 +26,8 @@ program main
    character(len=*), parameter :: debug_fmt_i = "(a,t35,':',256(tr1,i0))"
    character(len=*), parameter :: debug_fmt_l = "(a,t35,':',256(tr1,l0))"
    character(len=*), parameter :: debug_fmt_e = "(a,t35,':',256(tr1,e0.10))"
+   ! narrays highly linked to default method
+   integer :: narrays = 3
    integer :: method = METHOD_TRIAD
 
    integer, parameter :: DTYPE_REAL32 = 0
@@ -97,35 +99,45 @@ program main
 
          case ("fill")
             method = METHOD_FILL
+            narrays = 1
 
          case ("sum")
             method = METHOD_SUM
+            narrays = 1
 
          case ("add")
             method = METHOD_ADD
+            narrays = 3
 
          case ("copy")
             method = METHOD_COPY
+            narrays = 2
 
          case ("scale")
             method = METHOD_SCALE
+            narrays = 2
 
          case ("triad", "triadd")
             method = METHOD_TRIAD
+            narrays = 3
 
          case ("axpy")
             method = METHOD_AXPY
+            narrays = 2
 
          case ("daxpy")
             dtype = DTYPE_REAL64
             method = METHOD_AXPY
+            narrays = 2
 
          case ("saxpy")
             dtype = DTYPE_REAL32
             method = METHOD_AXPY
+            narrays = 2
 
          case ("false-sharing-triad", "false-sharing")
             method = METHOD_FALSE_SHARING_TRIAD
+            narrays = 3
 
          case ("-dtype", "--dtype")
 
@@ -282,7 +294,8 @@ program main
    end if
 
    ! Store in safety variable
-   big_n = nint(bytes*8/elem_size, int64)
+   ! This will be the number of elements *per array*
+   big_n = nint(bytes*8/(elem_size*narrays), int64)
    if (big_n > huge(n)) then
       write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64!"
       stop 20
@@ -348,12 +361,19 @@ program main
 !$omp end single
 !$omp end parallel
 
-      ! Reduce n since the method multiplies by nthreads
-      n = max(1, n/n_dim2)
-
       @:CASE_DTYPE_BENCHMARK(bench_false_sharing_triad)
 
    end select
+
+   ! Reduce n since the method multiplies by nthreads
+   if (n_dim2 > 1) then
+      n = max(1, nint(real(n, real64)/n_dim2))
+      big_n = n*n_dim2
+   end if
+
+   ! At this point we should have:
+   ! big_n == total number of elements *per array*
+   ! n == elements along the distributed array dimension (<= big_n)
 
    method_str = trim(method_str)//":"//dtype_str
 
@@ -368,9 +388,9 @@ program main
       type is (option_kernel_taskloop_t)
          write (OUTPUT_UNIT, "(a)") "taskloop"
       end select
+      ! Important to use big_n
       write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
-      write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
-      write (OUTPUT_UNIT, debug_fmt_e) "array_size [MB]", real(big_n, real64)*elem_size/(8*1024**2)
+      write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_size*narrays/(8*1024**2)
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
       write (OUTPUT_UNIT, debug_fmt_i) "warmup_itt", options%warmup_itt
       write (OUTPUT_UNIT, debug_fmt_i) "itt", options%itt
@@ -402,7 +422,7 @@ program main
    write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_avg()
    write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_std()
    write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_max()
-   write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%array_mb
+   write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%mem_mb
    write (OUTPUT_UNIT, "(tr1,f0.3)", advance="no") results%bandwidth_gbs
    write (OUTPUT_UNIT, "(tr1,f0.3)", advance="no") results%gflops
    write (OUTPUT_UNIT, *) ""

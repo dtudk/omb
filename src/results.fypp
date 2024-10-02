@@ -14,8 +14,8 @@ module results_m
       real(real64), allocatable :: times(:)
       ! How many arrays are involved in the routine
       integer :: narrays
-      ! Size of any single array
-      real(real64) :: array_mb
+      ! Size of all allocated arrays
+      real(real64) :: mem_mb
 
       ! How many GFLOPS has been processed
       real(real64) :: gflops
@@ -40,8 +40,8 @@ contains
       integer(${OMB_SIZE_TYPE}$) :: n
 
       this%narrays = narrays
-      this%array_mb = real(n, real64)*elem_size/(8._real64*1024**2)
-      this%bandwidth_gbs = this%narrays*this%array_mb/this%time_min()/1024
+      this%mem_mb = real(n, real64)*elem_size*narrays/(8._real64*1024**2)
+      this%bandwidth_gbs = this%mem_mb/this%time_min()/1024
       this%gflops = elem_flop*real(n, real64)/this%time_min()/1024**3
 
    end subroutine
