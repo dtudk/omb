@@ -6,17 +6,17 @@ _prefix="omb: "
 [ -z "$OMB_EXE" ] && OMB_EXE=$(which omb 2>/dev/null)
 [ -z "$OMB_EXE" ] && OMB_EXE=$(dirname $(readlink -f "$0"))/omb
 if [ ! -x "$OMB_EXE" ]; then
-  echo "$_prefix OMB_EXE=$OMB_EXE"
-  echo "$_prefix is not defined or not executable?"
+  echo >&2 "$_prefix OMB_EXE=$OMB_EXE"
+  echo >&2 "$_prefix is not defined or not executable?"
   exit 1
 fi
 
 if [ -z "$OMP_PLACES" ]; then
-  echo "$_prefix OMP_PLACES not defined, defaulting to: cores(2048)" >&2
+  echo >&2 "$_prefix OMP_PLACES not defined, defaulting to: cores(2048)"
   export OMP_PLACES="cores(2048)"
 fi
 if [ -z "$OMP_SCHEDULE" ]; then
-  echo "$_prefix OMP_SCHEDULE not defined, defaulting to: STATIC" >&2
+  echo >&2 "$_prefix OMP_SCHEDULE not defined, defaulting to: STATIC"
   export OMP_SCHEDULE=static
 fi
 
@@ -49,10 +49,10 @@ num_places=${num_places/ /}
 # then we can't really do the benchmark.
 # At least not in this script.
 if [ $num_places -lt $num_threads ]; then
-  echo "$_prefix got fewer places than threads"
-  echo "$_prefix omp_num_places  = $num_places"
-  echo "$_prefix omp_num_threads = $num_threads"
-  echo "$_prefix cannot perform a meaningful benchmark... Quitting..."
+  echo >&2 "$_prefix got fewer places than threads"
+  echo >&2 "$_prefix omp_num_places  = $num_places"
+  echo >&2 "$_prefix omp_num_threads = $num_threads"
+  echo >&2 "$_prefix cannot perform a meaningful benchmark... Quitting..."
   exit 1
 fi
 
@@ -169,6 +169,7 @@ function run_bench_places {
   # Write out so it can be tabularized
   # Remove initial `,`, then run!
   OMP_PLACES="${OMP_PLACES:1}" $OMB_EXE $@
+  return $?
 }
 
 # Start our loop
@@ -176,7 +177,14 @@ loop_bench_places
 while [ $? -eq 0 ]; do
 
   run_bench_places $@
+  retval=$?
+  if [[ $retval -ne 0 ]]; then
+    echo >&2 "$_prefix failed to run place = ${bench_places[@]}"
+    exit $retval
+  fi
 
   [ $loop -eq 0 ] && break
   loop_bench_places
 done
+
+exit 0
