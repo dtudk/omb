@@ -26,6 +26,12 @@ if [ "$1" == "no-loop" ]; then
   shift
 fi
 
+function error_show_tmp() {
+  # Simple function to show the temporary content, mainly for debugging
+  echo >&2 "$_prefix Content of the $OMB_EXE -omp for figuring out places.."
+  cat >&2 $tmpfile
+}
+
 # Create a nested loop-construct based on the OMP_PLACES.
 # Currently, only the comma-separated one is acceptable.
 tmpfile=$(mktemp)
@@ -53,6 +59,9 @@ if [ $num_places -lt $num_threads ]; then
   echo >&2 "$_prefix omp_num_places  = $num_places"
   echo >&2 "$_prefix omp_num_threads = $num_threads"
   echo >&2 "$_prefix cannot perform a meaningful benchmark... Quitting..."
+
+  error_show_tmp
+
   exit 1
 fi
 
@@ -180,6 +189,9 @@ while [ $? -eq 0 ]; do
   retval=$?
   if [[ $retval -ne 0 ]]; then
     echo >&2 "$_prefix failed to run place = ${bench_places[@]}"
+
+    error_show_tmp
+
     exit $retval
   fi
 
