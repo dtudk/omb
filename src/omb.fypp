@@ -47,8 +47,8 @@ program main
    ! to move the entire array out and ensure no caching is there...
    ! So, lets just take 512MB for safety.
    ! This means that the total memory is 512MB of memory
-   real(real64), parameter :: bytes2kB = 1._real64/1024**2
-   real(real64), parameter :: bytes2MB = 1._real64/1024**3
+   real(real64), parameter :: bytes2kB = 1._real64/1024
+   real(real64), parameter :: bytes2MB = 1._real64/1024**2
    real(real64) :: bytes = 512._real64*1024**2
    type(options_t) :: options
    type(results_t) :: results
@@ -378,11 +378,11 @@ program main
 
    ! Adjust number of iterations based on the byte size.
    ! For very small arrays, we should do more iterations to correctly
-   bytes = real(n, real64)*n_dim2*elem_size*narrays/8
+   bytes = real(big_n, real64)*elem_size*narrays/8
    ! time the small memories.
    if ((.not. option_set_itt) .and. bytes*bytes2MB < 1._real64) then
-      ! bump it up to 100 iterations
-      options%itt = 100
+      ! bump it up to 1000 iterations
+      options%itt = 1000
    end if
 
    ! At this point we should have:
@@ -392,7 +392,6 @@ program main
    method_str = trim(method_str)//":"//dtype_str
 
    if (debug) then
-      big_n = n*n_dim2
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       select type (kernel => options%kernel)
       type is (option_kernel_do_t)
