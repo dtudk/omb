@@ -381,8 +381,8 @@ program main
    bytes = real(n, real64)*n_dim2*elem_size*narrays/8
    ! time the small memories.
    if ((.not. option_set_itt) .and. bytes*bytes2MB < 1._real64) then
-      ! bump it up to 1000 iterations
-      options%itt = 10000
+      ! bump it up to 100 iterations
+      options%itt = 100
    end if
 
    ! At this point we should have:
