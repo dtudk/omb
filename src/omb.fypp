@@ -43,16 +43,20 @@ program main
    integer(int64) :: big_n
    integer(${OMB_SIZE_TYPE}$) :: n, n_dim2
 
-   ! We need to at least have array sizes on the order of 4 times the cache size
+   ! We need to at least have each array size on the order of 4 times the cache size
    ! to move the entire array out and ensure no caching is there...
    ! So, lets just take 512MB for safety.
-   ! This means that each array takes up 512MB of memory
+   ! This means that the total memory is 512MB of memory
+   real(real64), parameter :: bytes2kB = 1._real64/1024**2
+   real(real64), parameter :: bytes2MB = 1._real64/1024**3
    real(real64) :: bytes = 512._real64*1024**2
    type(options_t) :: options
    type(results_t) :: results
 
    logical :: debug = .false.
    logical :: info_omp = .false.
+
+   logical :: option_set_itt = .false.
 
    block
       integer :: nargs
@@ -192,6 +196,7 @@ program main
                stop 3
             end if
 
+            option_set_itt = .true.
             ! Read next arg
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
@@ -369,6 +374,15 @@ program main
    if (n_dim2 > 1) then
       n = max(1, nint(real(n, real64)/n_dim2))
       big_n = n*n_dim2
+   end if
+
+   ! Adjust number of iterations based on the byte size.
+   ! For very small arrays, we should do more iterations to correctly
+   bytes = real(n, real64)*n_dim2*elem_size*narrays/8
+   ! time the small memories.
+   if ((.not. option_set_itt) .and. bytes*bytes2MB < 1._real64) then
+      ! bump it up to 1000 iterations
+      options%itt = 10000
    end if
 
    ! At this point we should have:
