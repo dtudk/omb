@@ -48,6 +48,15 @@ find_package(OpenMP REQUIRED
 
 include(cmake/ombOpenMPOptions.cmake)
 
+
+find_package(MPI
+  COMPONENTS Fortran)
+
+option(OMB_WITH_MPI "Install omb with MPI support" FALSE)
+if( OMB_WITH_MPI )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_MPI=1")
+endif()
+
 # create library.
 add_subdirectory(src)
 

@@ -22,6 +22,7 @@ target_link_libraries(
   omb
   PRIVATE
   OpenMP::OpenMP_Fortran
+  $<$<BOOL:${OMB_WITH_MPI}>:MPI::MPI_Fortran>
   )
 
 # Install the library targets

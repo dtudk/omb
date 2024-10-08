@@ -28,7 +28,7 @@ fi
 
 function error_show_tmp() {
   # Simple function to show the temporary content, mainly for debugging
-  echo >&2 "$_prefix Content of the $OMB_EXE -omp for figuring out places.."
+  echo >&2 "$_prefix Content of the $OMB_EXE -env for figuring out places.."
   cat >&2 $tmpfile
 }
 
@@ -37,7 +37,7 @@ function error_show_tmp() {
 tmpfile=$(mktemp)
 # Ask openmp how the places are located.
 # Then, we will collect them through scripts.
-$OMB_EXE -omp 2>/dev/null > $tmpfile
+$OMB_EXE -env 2>/dev/null > $tmpfile
 
 # Retrieve total number of threads that this test should encompass
 num_threads=$(grep "omp num_threads" $tmpfile)

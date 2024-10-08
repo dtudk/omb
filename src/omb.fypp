@@ -6,6 +6,9 @@ program main
    ! This small utility program allows one to
    ! benchmark how read/write/read+write access
    ! in done with OpenMP.
+   #:if defined('OMB_MPI')
+      use mpi_f08
+   #:endif
    use omp_lib
    use iso_fortran_env, only: OUTPUT_UNIT, ERROR_UNIT
    use iso_fortran_env, only: real32, real64, real128
@@ -58,6 +61,19 @@ program main
 
    logical :: option_set_itt = .false.
 
+   #:if defined('OMB_MPI')
+      integer :: ierr_mpi
+      integer :: size_mpi, rank_mpi
+   #:endif
+
+   #:if defined('OMB_MPI')
+      call MPI_Init(ierr_mpi)
+
+      ! Get rank and size
+      call MPI_Comm_rank(MPI_COMM_WORLD, rank_mpi)
+      call MPI_Comm_size(MPI_COMM_WORLD, size_mpi)
+   #:endif
+
    block
       integer :: nargs
       integer :: iarg
@@ -78,7 +94,7 @@ program main
          case ("-debug", "--debug")
             debug = .true.
 
-         case ("-omp", "--omp")
+         case ("-env", "-omp", "--omp")
             info_omp = .true.
 
          case ("-kernel", "--kernel")
@@ -273,6 +289,12 @@ program main
       allocate (option_kernel_do_t::options%kernel)
    end if
 
+   #:if defined('OMB_MPI')
+      if (rank_mpi > 0) then
+         debug = .false.
+      end if
+   #:endif
+
    ! Generally, we will only use a single 2nd dimension.
    ! Only for false-sharing do we need a 2nd dimension.
    n_dim2 = 1
@@ -411,239 +433,289 @@ program main
 
    ! OpenMP information
    if (info_omp) then
-      call show_info_omp()
+      #:if defined('OMB_MPI')
+         call show_info_mpi()
+      #:else
+         call show_info_omp()
+      #:endif
    end if
 
    ! Allocate the timings
-   allocate (results%times(options%itt))
+   call results%allocate(options%itt)
 
    call benchmark(n, options, results)
 
-   write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
-   select type (kernel => options%kernel)
-   type is (option_kernel_do_t)
-      write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
-   type is (option_kernel_workshare_t)
-      write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
-   type is (option_kernel_taskloop_t)
-      write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
-   class default
-      write (ERROR_UNIT, *) "Unknown kernel specification"
-      stop 5
-   end select
-   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_min()
-   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_avg()
-   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_std()
-   write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_max()
-   write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%mem_mb
-   write (OUTPUT_UNIT, "(tr1,f0.3)", advance="no") results%bandwidth_gbs
-   write (OUTPUT_UNIT, "(tr1,f0.3)", advance="no") results%gflops
-   write (OUTPUT_UNIT, *) ""
+   ! Reduce the results
 
-   deallocate (results%times)
+   #:if defined('OMB_MPI')
 
-contains
-
-   subroutine read_and_check_next_arg(iarg, arg)
-      integer, intent(in) :: iarg
-      character(len=*), intent(inout) :: arg
-      integer :: len_arg
-
-      arg = " "
-      call get_command_argument(iarg, arg, length=len_arg)
-
-      if (len_arg > len(arg)) then
-         write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Argument", iarg, "is too long! (>256)"
-         stop 2
+      if (size_mpi > 1) then
+         ! Only reduce, if we have more than 1 processor
+         call results%reduce_mpi(results)
       end if
 
-   end subroutine
+      if (rank_mpi == 0) then
 
-   subroutine show_info_omp()
+         #:endif
 
-      ! If you ever have more places than 256 (threads etc.)
-      ! then bump up the values below
-      character(len=*), parameter :: omp_fmt_i = "('omp ',a,t35,':',256(tr1,i0))"
-      character(len=*), parameter :: omp_fmt_l = "('omp ',a,t35,':',256(tr1,l0))"
-      character(len=*), parameter :: omp_fmt_a = "('omp ',a,t35,':',256(tr1,a))"
-      character(len=*), parameter :: omp_fmt_p_i = "('omp ',a,t28,'[',i0,']',t35,':',256(tr1,i0))"
-      character(len=*), parameter :: omp_fmt_p_ids = "('omp ',a,t28,'[',i0,']',t35,':',tr1,256(i0,:,','))"
-      character(len=*), parameter :: omp_fmt_t_i = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,i0))"
-      character(len=*), parameter :: omp_fmt_t_ids = "('omp ','[',i0,']',tr1,a,t35,':',tr1,256(i0,:,','))"
-      character(len=*), parameter :: omp_fmt_t_a = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,a))"
-      character(len=2048) :: affinity_fmt, string
-      integer :: i, n, idx, chunk
-      integer :: thread, io_thread
-      integer :: proc_ids(2048)
-      integer(OMP_SCHED_KIND) :: sched
-      integer(OMP_PROC_BIND_KIND) :: proc_bind
+         write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
+         select type (kernel => options%kernel)
+         type is (option_kernel_do_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
+         type is (option_kernel_workshare_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
+         type is (option_kernel_taskloop_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
+         class default
+            write (ERROR_UNIT, *) "Unknown kernel specification"
+            stop 5
+         end select
+         write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_min()
+         write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_avg()
+         write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_std()
+         write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_max()
+         write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%mem_mb
+         write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%bandwidth_gbs()
+         write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%gflops()
+         write (OUTPUT_UNIT, *) ""
 
-      ! It is only defined outside of parallel regions
-      ! Inside parallel regions, it is implementation specific
-      string = " "
-      affinity_fmt = " "
-      i = omp_get_affinity_format(affinity_fmt)
-      if (i > len(affinity_fmt)) then
-         write (ERROR_UNIT, '(a,tr1,i0,tr1,a)') "Affinity format size is not big enough", i
-         stop 101
-      end if
+         flush OUTPUT_UNIT
 
-      write (OUTPUT_UNIT, *) ! newline
+         #:if defined('OMB_MPI')
+            end if
+
+            call MPI_Finalize(ierr_mpi)
+         #:endif
+
+      contains
+
+         subroutine read_and_check_next_arg(iarg, arg)
+            integer, intent(in) :: iarg
+            character(len=*), intent(inout) :: arg
+            integer :: len_arg
+
+            arg = " "
+            call get_command_argument(iarg, arg, length=len_arg)
+
+            if (len_arg > len(arg)) then
+               write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Argument", iarg, "is too long! (>256)"
+               stop 2
+            end if
+
+         end subroutine
+
+         #:if defined('OMB_MPI')
+            subroutine show_info_mpi()
+
+               character(len=*), parameter :: mpi_fmt_i = "('mpi ',a,t35,':',256(tr1,i0))"
+
+               ! This basically loops show_info_omp for each rank
+               integer :: rank
+
+               do rank = 0, size_mpi - 1
+                  flush OUTPUT_UNIT
+
+                  if (rank == rank_mpi) then
+                     if (rank == 0) then
+                        write (OUTPUT_UNIT, mpi_fmt_i) "comm_size", size_mpi
+                     end if
+                     write (OUTPUT_UNIT, mpi_fmt_i, advance="no") "comm_rank", rank_mpi
+                     call show_info_omp()
+                     write (OUTPUT_UNIT, *) ! empty line
+                     flush OUTPUT_UNIT
+                  end if
+                  flush OUTPUT_UNIT
+
+               end do
+
+            end subroutine
+         #:endif
+
+         subroutine show_info_omp()
+
+            ! If you ever have more places than 256 (threads etc.)
+            ! then bump up the values below
+            character(len=*), parameter :: omp_fmt_i = "('omp ',a,t35,':',256(tr1,i0))"
+            character(len=*), parameter :: omp_fmt_l = "('omp ',a,t35,':',256(tr1,l0))"
+            character(len=*), parameter :: omp_fmt_a = "('omp ',a,t35,':',256(tr1,a))"
+            character(len=*), parameter :: omp_fmt_p_i = "('omp ',a,t28,'[',i0,']',t35,':',256(tr1,i0))"
+            character(len=*), parameter :: omp_fmt_p_ids = "('omp ',a,t28,'[',i0,']',t35,':',tr1,256(i0,:,','))"
+            character(len=*), parameter :: omp_fmt_t_i = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,i0))"
+            character(len=*), parameter :: omp_fmt_t_ids = "('omp ','[',i0,']',tr1,a,t35,':',tr1,256(i0,:,','))"
+            character(len=*), parameter :: omp_fmt_t_a = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,a))"
+            character(len=2048) :: affinity_fmt, string
+            integer :: i, n, idx, chunk
+            integer :: thread, io_thread
+            integer :: proc_ids(2048)
+            integer(OMP_SCHED_KIND) :: sched
+            integer(OMP_PROC_BIND_KIND) :: proc_bind
+
+            ! It is only defined outside of parallel regions
+            ! Inside parallel regions, it is implementation specific
+            string = " "
+            affinity_fmt = " "
+            i = omp_get_affinity_format(affinity_fmt)
+            if (i > len(affinity_fmt)) then
+               write (ERROR_UNIT, '(a,tr1,i0,tr1,a)') "Affinity format size is not big enough", i
+               stop 101
+            end if
+
+            write (OUTPUT_UNIT, *) ! newline
 
 !$omp parallel default(private) shared(affinity_fmt)
 
-      ! Generic OMP information
+            ! Generic OMP information
 
 !$omp single
-      write (OUTPUT_UNIT, omp_fmt_i) "max_threads", omp_get_max_threads()
-      write (OUTPUT_UNIT, omp_fmt_i) "num_threads", omp_get_num_threads()
-      write (OUTPUT_UNIT, omp_fmt_i) "num_procs", omp_get_num_procs()
-      write (OUTPUT_UNIT, omp_fmt_i) "thread_limit", omp_get_thread_limit()
+            write (OUTPUT_UNIT, omp_fmt_i) "max_threads", omp_get_max_threads()
+            write (OUTPUT_UNIT, omp_fmt_i) "num_threads", omp_get_num_threads()
+            write (OUTPUT_UNIT, omp_fmt_i) "num_procs", omp_get_num_procs()
+            write (OUTPUT_UNIT, omp_fmt_i) "thread_limit", omp_get_thread_limit()
 
-      call get_environment_variable("OMP_SCHEDULE", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_SCHEDULE", trim(adjustl(string))
-      call get_environment_variable("OMP_STACKSIZE", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_STACKSIZE", trim(adjustl(string))
-      call get_environment_variable("OMP_WAIT_POLICY", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_WAIT_POLICY", trim(adjustl(string))
-      call get_environment_variable("OMP_NESTED", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_NESTED", trim(adjustl(string))
-      call get_environment_variable("OMP_TARGET_OFFLOAD", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_TARGET_OFFLOAD", trim(adjustl(string))
-      call get_environment_variable("OMP_TOOL", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_TOOL", trim(adjustl(string))
-      call get_environment_variable("OMP_ALLOCATOR", string, i)
-      write (OUTPUT_UNIT, omp_fmt_a) "OMP_ALLOCATOR", trim(adjustl(string))
+            call get_environment_variable("OMP_SCHEDULE", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_SCHEDULE", trim(adjustl(string))
+            call get_environment_variable("OMP_STACKSIZE", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_STACKSIZE", trim(adjustl(string))
+            call get_environment_variable("OMP_WAIT_POLICY", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_WAIT_POLICY", trim(adjustl(string))
+            call get_environment_variable("OMP_NESTED", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_NESTED", trim(adjustl(string))
+            call get_environment_variable("OMP_TARGET_OFFLOAD", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_TARGET_OFFLOAD", trim(adjustl(string))
+            call get_environment_variable("OMP_TOOL", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_TOOL", trim(adjustl(string))
+            call get_environment_variable("OMP_ALLOCATOR", string, i)
+            write (OUTPUT_UNIT, omp_fmt_a) "OMP_ALLOCATOR", trim(adjustl(string))
 
-      write (OUTPUT_UNIT, omp_fmt_a) "affinity_format", trim(adjustl(affinity_fmt))
+            write (OUTPUT_UNIT, omp_fmt_a) "affinity_format", trim(adjustl(affinity_fmt))
 
-      i = omp_capture_affinity(string, "%H")
-      write (OUTPUT_UNIT, omp_fmt_a) "host", trim(adjustl(string))
+            i = omp_capture_affinity(string, "%H")
+            write (OUTPUT_UNIT, omp_fmt_a) "host", trim(adjustl(string))
 
-      i = omp_capture_affinity(string, "%P")
-      write (OUTPUT_UNIT, omp_fmt_a) "process_id", trim(adjustl(string))
+            i = omp_capture_affinity(string, "%P")
+            write (OUTPUT_UNIT, omp_fmt_a) "process_id", trim(adjustl(string))
 
-      call omp_get_schedule(sched, chunk)
-      select case (sched)
-      case (OMP_SCHED_STATIC)
-         write (OUTPUT_UNIT, omp_fmt_a) "schedule", "static"
-      case (OMP_SCHED_DYNAMIC)
-         write (OUTPUT_UNIT, omp_fmt_a) "schedule", "dynamic"
-      case (OMP_SCHED_GUIDED)
-         write (OUTPUT_UNIT, omp_fmt_a) "schedule", "guided"
-      case (OMP_SCHED_AUTO)
-         write (OUTPUT_UNIT, omp_fmt_a) "schedule", "auto"
-         !case ( OMP_SCHED_MONOTONIC )
-         !   write(OUTPUT_UNIT,omp_fmt_a) "omp schedule", "monotonic"
-      case default
-         write (OUTPUT_UNIT, omp_fmt_i) "schedule", sched
-      end select
-      write (OUTPUT_UNIT, omp_fmt_i) "schedule_chunk", chunk
+            call omp_get_schedule(sched, chunk)
+            select case (sched)
+            case (OMP_SCHED_STATIC)
+               write (OUTPUT_UNIT, omp_fmt_a) "schedule", "static"
+            case (OMP_SCHED_DYNAMIC)
+               write (OUTPUT_UNIT, omp_fmt_a) "schedule", "dynamic"
+            case (OMP_SCHED_GUIDED)
+               write (OUTPUT_UNIT, omp_fmt_a) "schedule", "guided"
+            case (OMP_SCHED_AUTO)
+               write (OUTPUT_UNIT, omp_fmt_a) "schedule", "auto"
+               !case ( OMP_SCHED_MONOTONIC )
+               !   write(OUTPUT_UNIT,omp_fmt_a) "omp schedule", "monotonic"
+            case default
+               write (OUTPUT_UNIT, omp_fmt_i) "schedule", sched
+            end select
+            write (OUTPUT_UNIT, omp_fmt_i) "schedule_chunk", chunk
 
-      if (omp_get_dynamic()) then
-         write (OUTPUT_UNIT, omp_fmt_a) "dynamic", "true"
-      else
-         write (OUTPUT_UNIT, omp_fmt_a) "dynamic", "false"
-      end if
+            if (omp_get_dynamic()) then
+               write (OUTPUT_UNIT, omp_fmt_a) "dynamic", "true"
+            else
+               write (OUTPUT_UNIT, omp_fmt_a) "dynamic", "false"
+            end if
 
-      proc_bind = omp_get_proc_bind()
-      select case (proc_bind)
-      case (OMP_PROC_BIND_FALSE)
-         write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "false"
-      case (OMP_PROC_BIND_TRUE)
-         write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "true"
-      case (OMP_PROC_BIND_MASTER)
-         write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "master"
-      case (OMP_PROC_BIND_CLOSE)
-         write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "close"
-      case (OMP_PROC_BIND_SPREAD)
-         write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "spread"
-      case default
-         write (OUTPUT_UNIT, omp_fmt_i) "proc_bind", proc_bind
-      end select
+            proc_bind = omp_get_proc_bind()
+            select case (proc_bind)
+            case (OMP_PROC_BIND_FALSE)
+               write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "false"
+            case (OMP_PROC_BIND_TRUE)
+               write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "true"
+            case (OMP_PROC_BIND_MASTER)
+               write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "master"
+            case (OMP_PROC_BIND_CLOSE)
+               write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "close"
+            case (OMP_PROC_BIND_SPREAD)
+               write (OUTPUT_UNIT, omp_fmt_a) "proc_bind", "spread"
+            case default
+               write (OUTPUT_UNIT, omp_fmt_i) "proc_bind", proc_bind
+            end select
 
-      #:if OMB_OMP_DEVICE > 0
-         write (OUTPUT_UNIT, omp_fmt_i) "num_devices", omp_get_num_devices()
-         write (OUTPUT_UNIT, omp_fmt_i) "default_device", omp_get_default_device()
-         write (OUTPUT_UNIT, omp_fmt_i) "device_num", omp_get_device_num()
-      #:endif
-
-      #:if OMB_OMP_TEAMS > 0
-         write (OUTPUT_UNIT, omp_fmt_i) "num_teams", omp_get_num_teams()
-         write (OUTPUT_UNIT, omp_fmt_i) "team_num", omp_get_team_num()
-      #:endif
-
-      write (OUTPUT_UNIT, omp_fmt_i) "num_places", omp_get_num_places()
-      do i = 0, omp_get_num_places() - 1
-
-         n = omp_get_place_num_procs(i)
-         write (OUTPUT_UNIT, omp_fmt_p_i) "place_num_procs", i, n
-         call omp_get_place_proc_ids(i, proc_ids)
-         write (OUTPUT_UNIT, omp_fmt_p_ids) "place_proc_ids", i, proc_ids(1:n)
-
-      end do
-
-      write (OUTPUT_UNIT, *) ! newline
-
-      flush OUTPUT_UNIT
-!$omp end single
-      flush OUTPUT_UNIT
-
-      ! Thread information
-
-      thread = omp_get_thread_num()
-      do io_thread = 0, omp_get_max_threads() - 1
-         if (io_thread == thread) then
-
-            i = omp_capture_affinity(string, "%i | %A")
-            write (OUTPUT_UNIT, omp_fmt_t_a) thread, "thread_id | affinity", trim(adjustl(string))
-
-            #:if OMB_OMP_PARTITION > 0
-               n = omp_get_partition_num_places()
-               write (OUTPUT_UNIT, omp_fmt_t_i) thread, "partition_num_places", n
-
-               call omp_get_partition_place_nums(proc_ids)
-               write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "partition_place_nums", proc_ids(1:n)
+            #:if OMB_OMP_DEVICE > 0
+               write (OUTPUT_UNIT, omp_fmt_i) "num_devices", omp_get_num_devices()
+               write (OUTPUT_UNIT, omp_fmt_i) "default_device", omp_get_default_device()
+               write (OUTPUT_UNIT, omp_fmt_i) "device_num", omp_get_device_num()
             #:endif
 
-            i = omp_get_place_num()
-            n = omp_get_place_num_procs(i)
-            write (OUTPUT_UNIT, omp_fmt_t_i) thread, "place_num_procs", n
-            call omp_get_place_proc_ids(i, proc_ids)
-            write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "place_proc_ids", proc_ids(1:n)
+            #:if OMB_OMP_TEAMS > 0
+               write (OUTPUT_UNIT, omp_fmt_i) "num_teams", omp_get_num_teams()
+               write (OUTPUT_UNIT, omp_fmt_i) "team_num", omp_get_team_num()
+            #:endif
 
-         end if
+            write (OUTPUT_UNIT, omp_fmt_i) "num_places", omp_get_num_places()
+            do i = 0, omp_get_num_places() - 1
+
+               n = omp_get_place_num_procs(i)
+               write (OUTPUT_UNIT, omp_fmt_p_i) "place_num_procs", i, n
+               call omp_get_place_proc_ids(i, proc_ids)
+               write (OUTPUT_UNIT, omp_fmt_p_ids) "place_proc_ids", i, proc_ids(1:n)
+
+            end do
+
+            write (OUTPUT_UNIT, *) ! newline
+
+            flush OUTPUT_UNIT
+!$omp end single
+            flush OUTPUT_UNIT
+
+            ! Thread information
+
+            thread = omp_get_thread_num()
+            do io_thread = 0, omp_get_max_threads() - 1
+               if (io_thread == thread) then
+
+                  i = omp_capture_affinity(string, "%i | %P")
+                  write (OUTPUT_UNIT, omp_fmt_t_a) thread, "thread_id | process_id", trim(adjustl(string))
+
+                  #:if OMB_OMP_PARTITION > 0
+                     n = omp_get_partition_num_places()
+                     write (OUTPUT_UNIT, omp_fmt_t_i) thread, "partition_num_places", n
+
+                     call omp_get_partition_place_nums(proc_ids)
+                     write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "partition_place_nums", proc_ids(1:n)
+                  #:endif
+
+                  i = omp_get_place_num()
+                  n = omp_get_place_num_procs(i)
+                  write (OUTPUT_UNIT, omp_fmt_t_i) thread, "place_num_procs", n
+                  call omp_get_place_proc_ids(i, proc_ids)
+                  write (OUTPUT_UNIT, omp_fmt_t_ids) thread, "place_proc_ids", proc_ids(1:n)
+
+               end if
 !$omp barrier
-         flush OUTPUT_UNIT
-      end do
+               flush OUTPUT_UNIT
+            end do
 
 !$omp end parallel
 
-   end subroutine
+         end subroutine
 
-   pure function lcase(str)
-      character(len=*), intent(in) :: str
-      character(len=len(str)) :: lcase
-      character(len=*), parameter :: upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-      character(len=*), parameter :: lower = 'abcdefghijklmnopqrstuvwxyz'
+         pure function lcase(str)
+            character(len=*), intent(in) :: str
+            character(len=len(str)) :: lcase
+            character(len=*), parameter :: upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            character(len=*), parameter :: lower = 'abcdefghijklmnopqrstuvwxyz'
 
-      integer :: ic, i
+            integer :: ic, i
 
-      ! Capitalize each letter if it is lowercase
-      lcase = str
-      i = scan(lcase, upper)
-      do while (i > 0)
-         ! Get the conversion index
-         ic = index(upper, lcase(i:i))
-         lcase(i:i) = lower(ic:ic)
-         ic = scan(lcase(i + 1:), upper)
-         if (ic > 0) then
-            i = i + ic
-         else
-            i = 0
-         end if
-      end do
+            ! Capitalize each letter if it is lowercase
+            lcase = str
+            i = scan(lcase, upper)
+            do while (i > 0)
+               ! Get the conversion index
+               ic = index(upper, lcase(i:i))
+               lcase(i:i) = lower(ic:ic)
+               ic = scan(lcase(i + 1:), upper)
+               if (ic > 0) then
+                  i = i + ic
+               else
+                  i = 0
+               end if
+            end do
 
-   end function lcase
+         end function lcase
 
-end program
+      end program

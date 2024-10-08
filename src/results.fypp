@@ -12,27 +12,54 @@ module results_m
 
       ! Timing of execution
       real(real64), allocatable :: times(:)
+
       ! How many arrays are involved in the routine
       integer :: narrays
+
       ! Size of all allocated arrays
       real(real64) :: mem_mb
 
-      ! How many GFLOPS has been processed
-      real(real64) :: gflops
-      ! Bandwidth
-      real(real64) :: bandwidth_gbs
+      ! gflop
+      real(real64) :: gflop
 
    contains
 
+      procedure, pass :: allocate
       procedure, pass :: update
       procedure, pass :: time_max
       procedure, pass :: time_min
       procedure, pass :: time_avg
       procedure, pass :: time_std
+      procedure, pass :: gflops
+      procedure, pass :: bandwidth_gbs
+      #:if defined('OMB_MPI')
+         procedure, pass :: reduce_mpi
+      #:endif
+      procedure, pass :: deallocate
+
+      final :: finalize
 
    end type
 
 contains
+
+   subroutine allocate (this, n)
+      class(results_t), intent(inout) :: this
+      integer, intent(in) :: n
+
+      call this%deallocate()
+      allocate (this%times(n))
+
+   end subroutine
+
+   subroutine deallocate (this)
+      class(results_t), intent(inout) :: this
+
+      if (allocated(this%times)) then
+         deallocate (this%times)
+      end if
+
+   end subroutine
 
    subroutine update(this, narrays, n, elem_flop, elem_size)
       class(results_t), intent(inout) :: this
@@ -41,10 +68,21 @@ contains
 
       this%narrays = narrays
       this%mem_mb = real(n, real64)*elem_size*narrays/(8._real64*1024**2)
-      this%bandwidth_gbs = this%mem_mb/this%time_min()/1024
-      this%gflops = elem_flop*real(n, real64)/this%time_min()/1024**3
+      this%gflop = elem_flop*real(n, real64)/1024**3
 
    end subroutine
+
+   function gflops(this)
+      class(results_t), intent(in) :: this
+      real(real64) :: gflops
+      gflops = this%gflop/this%time_min()
+   end function
+
+   function bandwidth_gbs(this) result(bandwidth)
+      class(results_t), intent(in) :: this
+      real(real64) :: bandwidth
+      bandwidth = this%mem_mb/this%time_min()/1024
+   end function
 
    function time_max(this) result(time)
       class(results_t), intent(in) :: this
@@ -79,5 +117,40 @@ contains
       end do
       std = std/(size(this%times, 1) - 1)
    end function
+
+   #:if defined('OMB_MPI')
+
+      subroutine reduce_mpi(this, this_mpi)
+         use mpi_f08
+
+         class(results_t), intent(in) :: this
+         type(results_t), intent(inout) :: this_mpi
+
+         integer :: ierr_mpi
+         integer :: size_mpi
+
+         real(real64) :: time
+
+         ! Get rank and size
+         call MPI_Comm_size(MPI_COMM_WORLD, size_mpi)
+
+         ! Reduce to the timings
+         time = this%time_min()
+
+         ! This will allow us to use the same object
+         call this_mpi%allocate(size_mpi)
+
+         call MPI_Gather(time, 1, MPI_Double_Precision, &
+                         this_mpi%times, 1, MPI_Double_Precision, &
+                         0, MPI_COMM_WORLD, ierr_mpi)
+
+      end subroutine
+
+   #:endif
+
+   subroutine finalize(this)
+      type(results_t), intent(inout) :: this
+      call this%deallocate()
+   end subroutine
 
 end module results_m
