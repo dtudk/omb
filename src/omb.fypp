@@ -525,6 +525,9 @@ contains
                write (OUTPUT_UNIT, *) ! empty line
                flush OUTPUT_UNIT
             end if
+
+            call MPI_Barrier(MPI_COMM_WORLD)
+
             flush OUTPUT_UNIT
 
          end do
