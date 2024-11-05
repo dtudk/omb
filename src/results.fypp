@@ -68,7 +68,7 @@ contains
 
       this%narrays = narrays
       this%mem_mb = real(n, real64)*elem_size*narrays/(8._real64*1024**2)
-      this%gflop = elem_flop*real(n, real64)/1024**3
+      this%gflop = elem_flop*real(n, real64)/1000**3
 
    end subroutine
 
