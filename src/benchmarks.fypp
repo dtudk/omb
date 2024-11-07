@@ -1,10 +1,16 @@
 #:include "common.fypp"
 
-#:def TYPE_IS(name)
-   type is (${name}$)
+#:def START_TIMING()
+   ! just to ensure we are aligned before the single
+   !$omp barrier
    !$omp single
    call timing%start()
-   !$omp end single
+   !$omp end single nowait
+#:enddef
+
+#:def TYPE_IS(name)
+   type is (${name}$)
+   @:START_TIMING()
 #:enddef
 
 module benchmarks_m
@@ -110,7 +116,7 @@ contains
 
          integer(${OMB_SIZE_TYPE}$) :: i
          real(${real}$) :: sum
-         integer :: itt
+         integer :: it
 
          if (options%first_touch) then
             call first_touch(n, a)
@@ -118,9 +124,12 @@ contains
             call single_touch(n, a)
          end if
 
-         do itt = 1, options%warmup_itt
+         do it = 1, options%warmup_it
             sum = 0._${real}$
-!$omp do private(i) schedule(runtime)
+            ! We can't do a reduction on the sum
+            ! variable, since it is an orphaned
+            ! method.
+!$omp do private(i,sum) schedule(runtime)
             do i = 1, n
                sum = sum + a(i)
             end do
@@ -135,7 +144,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_SIZE_TYPE}$) :: i
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$) :: sum_a
@@ -148,11 +157,11 @@ contains
          ! Allocate etc.
          allocate (a(n))
 
-!$omp parallel private(itt,i) shared(n,a,sum_a)
+!$omp parallel private(it,i) shared(n,a,sum_a)
 
          call init_array(n, a, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -179,7 +188,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -198,7 +207,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_SIZE_TYPE}$) :: i
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$) :: fill
@@ -210,13 +219,13 @@ contains
 
          ! Allocate etc.
          allocate (a(n))
-         fill = 3._${real}$
+         fill = 2._${real}$
 
-!$omp parallel private(itt,i) shared(n,a,fill)
+!$omp parallel private(it,i) shared(n,a,fill)
 
          call init_array(n, a, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -243,7 +252,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -262,7 +271,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_SIZE_TYPE}$) :: i
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
@@ -274,12 +283,12 @@ contains
          ! Allocate etc.
          allocate (a(n), b(n))
 
-!$omp parallel private(itt,i) shared(n,a,b)
+!$omp parallel private(it,i) shared(n,a,b)
 
          call init_array(n, a, options)
          call init_array(n, b, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -306,7 +315,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -325,7 +334,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_SIZE_TYPE}$) :: i
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$) :: scale
@@ -339,12 +348,12 @@ contains
          allocate (a(n), b(n))
          scale = 2._${real}$
 
-!$omp parallel private(itt,i) shared(n,a,b,scale)
+!$omp parallel private(it,i) shared(n,a,b,scale)
 
          call init_array(n, a, options)
          call init_array(n, b, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -371,7 +380,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -390,7 +399,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_SIZE_TYPE}$) :: i
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
@@ -402,13 +411,13 @@ contains
          ! Allocate etc.
          allocate (a(n), b(n), c(n))
 
-!$omp parallel private(itt,i) shared(n,a,b,c)
+!$omp parallel private(it,i) shared(n,a,b,c)
 
          call init_array(n, a, options)
          call init_array(n, b, options)
          call init_array(n, c, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -435,7 +444,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -454,7 +463,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_SIZE_TYPE}$) :: i
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$) :: scale
@@ -468,13 +477,13 @@ contains
          allocate (a(n), b(n), c(n))
          scale = 2._${real}$
 
-!$omp parallel private(itt,i) shared(n,a,b,c,scale)
+!$omp parallel private(it,i) shared(n,a,b,c,scale)
 
          call init_array(n, a, options)
          call init_array(n, b, options)
          call init_array(n, c, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -500,7 +509,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -518,7 +527,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          integer(${OMB_SIZE_TYPE}$) :: i
@@ -533,12 +542,12 @@ contains
          allocate (a(n), b(n))
          scale = 2._${real}$
 
-!$omp parallel private(itt) shared(n,a,b,scale)
+!$omp parallel private(it) shared(n,a,b,scale)
 
          call init_array(n, a, options)
          call init_array(n, b, options)
 
-         do itt = 1, options%itt
+         do it = 1, options%it
 
             select type (kernel => options%kernel)
 
@@ -551,7 +560,7 @@ contains
 
                @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(:) = scale*b(:)
+               a(:) = a(:) + scale*b(:)
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
@@ -565,7 +574,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do
@@ -586,7 +595,7 @@ contains
 
          integer(${OMB_SIZE_TYPE}$) :: i
          integer :: nthreads, id
-         integer :: itt
+         integer :: it
          type(timing_t) :: timing
 
          real(${real}$) :: scale
@@ -605,7 +614,7 @@ contains
          allocate (a(nthreads, n), b(nthreads, n), c(nthreads, n))
          scale = 2._${real}$
 
-!$omp parallel private(itt,i,id) shared(n,a,b,scale,nthreads)
+!$omp parallel private(it,i,id) shared(n,a,b,scale,nthreads)
 
          ! Direct call to omit interface constructs
          call init_array_${real}$ (nthreads*n, a, options)
@@ -615,7 +624,9 @@ contains
          ! Get local thread-id
          id = omp_get_thread_num() + 1
 
-         do itt = 1, options%itt
+         do it = 1, options%it
+
+            @:START_TIMING()
 
             ! To traverse everything, we don't need an OMP loop
             ! Each thread accesses its own space.
@@ -625,7 +636,7 @@ contains
 
 !$omp single
             call timing%stop()
-            results%times(itt) = timing%time
+            results%times(it) = timing%time
 !$omp end single
 
          end do

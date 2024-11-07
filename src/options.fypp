@@ -26,8 +26,8 @@ module options_m
 
    type, public :: options_t
 
-      integer :: itt = 20
-      integer :: warmup_itt = 1
+      integer :: it = 20
+      integer :: warmup_it = 1
       logical :: first_touch = .true.
       class(option_kernel_t), pointer :: kernel => null()
 

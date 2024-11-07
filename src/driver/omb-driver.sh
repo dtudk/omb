@@ -1,5 +1,72 @@
 #!/bin/bash
 #
+# This driver runs the 'omb' executable by varying the places that are available.
+# The idea is to make a simple wrapper for running 'omb' with specific
+# places of the threads.
+#
+# It works in a 3 step process:
+#
+# 1. Detect whether the user has specified some env-vars:
+#    - OMP_EXE [=$(pwd of script)/omb]
+#
+#      Specifies the executable 'omp' from this project.
+#
+#    - OMP_PLACES [=cores(2048)]
+#
+#      If not set, this will be defaulted to 'cores(2048)',
+#      meaning that the run will cycle through all cores available,
+#      up to the first 2048 cores!
+#
+#    - OMP_SCHEDULE [=static]
+#
+#      Specifies how the internal openmp schedule is done for the
+#      loops. If not specified it will default to 'static'.
+#
+# 2. Then the 'omb' code is executed to get information about the
+#    allowed places and how many threads etc.
+#
+#    It does this by running a first *informational* run.
+#    It only gets information from the 'omb' executable as to
+#    which *places* [omp_get_num_places + omp_get_place_proc_ids].
+#    E.g. if one has set 'OMP_PLACES=cores(4)' one will have 4 places,
+#    each of them using consecutive core-ids as viable places.
+#    It would be equivalent to do 'OMP_PLACES=0,1,2,3' (provided there
+#    are no HWthreads).
+#
+#    The script will also detect the number of available threads, which
+#    is controlled by 'OMP_NUM_THREADS'.
+#
+#    So after this step, the driver has information about:
+#
+#    a) number of threads the experiment should be runned with
+#    b) how many *different* places/configurations the threads
+#       can be placed on (see example in next step).
+#
+# 3. The final step is to run the experiment with the information
+#    retrieved from 2.
+#
+#    Best to show this with an example:
+#
+#       OMP_NUM_THREADS=3 OMP_PLACES=0,{1,2},4,5,10 omb-driver $@
+#
+#    This will run a combination of runs, equivalent to:
+#
+#       export OMP_NUM_THREADS=3
+#
+#       OMP_PLACES=0,{1,2},4 omb $@
+#       OMP_PLACES=0,{1,2},5 omb $@
+#       OMP_PLACES=0,{1,2},10 omb $@
+#       OMP_PLACES=0,4,5 omb $@
+#       OMP_PLACES=0,4,10 omb $@
+#       OMP_PLACES=0,5,10 omb $@
+#       OMP_PLACES={1,2},4,5 omb $@
+#       OMP_PLACES={1,2},4,10 omb $@
+#       OMP_PLACES={1,2},5,10 omb $@
+#       OMP_PLACES=4,5,10 omb $@
+#
+#     so it will run through the unique combinations of the initial
+#     available places (upper triangular part of the combination matrix).
+#
 
 _prefix="omb: "
 # Driver for creating comprehensive benchmarks.
@@ -74,7 +141,7 @@ place_num_procs=()
 # An example line looks something like this:
 # omp place_proc_ids [1] : 0 2 4
 # - [1] == 2nd place specification
-# - 0 2 4 == can be located either places
+# - 0 2 4 == the 2nd thread can be places on either of these core IDs
 place_proc_ids_re="omp place_proc_ids[ ]+\[([ 0-9]*)\][ ]*:[ ]*(.*)"
 while IFS= read -r omp_place_proc_ids
 do
@@ -117,6 +184,7 @@ declare -a bench_places
 loop_bench_places_step() {
   local id=$1
   shift
+
   if [[ $id -lt 0 ]]; then
     return 1
   fi
@@ -153,6 +221,8 @@ loop_bench_places_step() {
 }
 
 loop_bench_places() {
+  local id
+
   if [ ${#bench_places[@]} -eq 0 ]; then
     # Setup the nested loop construct
     for id in $(seq 1 $num_threads)
@@ -167,6 +237,8 @@ loop_bench_places() {
 }
 
 function run_bench_places {
+  local id
+
   OMP_PLACES=
   for id in ${bench_places[@]}
   do

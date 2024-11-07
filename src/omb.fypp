@@ -40,11 +40,13 @@ program main
 
    procedure(benchmark_method), pointer :: benchmark => null()
 
+   ! Method definitions
    character(len=64) :: method_str
    character(len=1) :: dtype_str
    integer :: elem_size
    integer(int64) :: big_n
    integer(${OMB_SIZE_TYPE}$) :: n, n_dim2
+   integer :: chunk_size
 
    ! We need to at least have each array size on the order of 4 times the cache size
    ! to move the entire array out and ensure no caching is there...
@@ -59,7 +61,7 @@ program main
    logical :: debug = .false.
    logical :: info_env = .false.
 
-   logical :: option_set_itt = .false.
+   logical :: option_set_it = .false.
 
    integer :: rank_mpi = 0
    #:if defined('OMB_MPI')
@@ -74,6 +76,14 @@ program main
       call MPI_Comm_rank(MPI_COMM_WORLD, rank_mpi)
       call MPI_Comm_size(MPI_COMM_WORLD, size_mpi)
    #:endif
+
+   ! Extract the chunk-size, mainly useful for the taskloop
+   ! method which uses *grainsize* and that is not controllable
+   ! by the env-var.
+   block
+      integer(OMP_SCHED_KIND) :: sched
+      call omp_get_schedule(sched, chunk_size)
+   end block
 
    block
       integer :: nargs
@@ -109,6 +119,10 @@ program main
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
 
+            if (associated(options%kernel)) then
+               deallocate (options%kernel)
+            end if
+
             select case (arg)
             case ("do")
                allocate (option_kernel_do_t::options%kernel)
@@ -116,6 +130,11 @@ program main
                allocate (option_kernel_workshare_t::options%kernel)
             case ("taskloop")
                allocate (option_kernel_taskloop_t::options%kernel)
+            end select
+
+            select type (kernel => options%kernel)
+            type is (option_kernel_taskloop_t)
+               kernel%grainsize = max(1, chunk_size)
             end select
 
          case ("fill")
@@ -156,7 +175,7 @@ program main
             method = METHOD_AXPY
             narrays = 2
 
-         case ("false-sharing-triad", "false-sharing")
+         case ("fs-triad", "false-sharing-triad")
             method = METHOD_FALSE_SHARING_TRIAD
             narrays = 3
 
@@ -172,13 +191,13 @@ program main
             call read_and_check_next_arg(iarg, arg)
 
             select case (arg)
-            case ("real32", "32")
+            case ("real32", "32", "float")
                dtype = DTYPE_REAL32
 
-            case ("real64", "64")
+            case ("real64", "64", "double")
                dtype = DTYPE_REAL64
 
-            case ("real128", "128")
+            case ("real128", "128", "doubledouble", "longdouble")
                dtype = DTYPE_REAL128
 
             case default
@@ -196,7 +215,7 @@ program main
          case ("-warmup", "--warmup")
 
             if (iarg >= nargs) then
-               write (ERROR_UNIT, *) "Too few arguments, -warmup-itt has no argument"
+               write (ERROR_UNIT, *) "Too few arguments, --warmup has no argument"
                stop 3
             end if
 
@@ -204,21 +223,21 @@ program main
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
 
-            read (arg, *) options%warmup_itt
+            read (arg, *) options%warmup_it
 
-         case ("-itt", "--itt")
+         case ("-it", "--it", "--itt", "-itt") ! last two are legacy options
 
             if (iarg >= nargs) then
-               write (ERROR_UNIT, *) "Too few arguments, -warmup-itt has no argument"
+               write (ERROR_UNIT, *) "Too few arguments, --it has no argument"
                stop 3
             end if
 
-            option_set_itt = .true.
+            option_set_it = .true.
             ! Read next arg
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
 
-            read (arg, *) options%itt
+            read (arg, *) options%it
 
          case ("-n", "--n")
 
@@ -258,9 +277,15 @@ program main
                stop 4
             end if
 
+         case ("help", "--help", "-help", "-h")
+
+            call print_help()
+            stop 0
+
          case default
 
             write (ERROR_UNIT, *) "Unknown argument: ", trim(arg)
+            call print_help()
             stop 1
 
          end select
@@ -403,16 +428,14 @@ program main
    ! For very small arrays, we should do more iterations to correctly
    bytes = real(big_n, real64)*elem_size*narrays/8
    ! time the small memories.
-   if ((.not. option_set_itt) .and. bytes*bytes2MB < 1._real64) then
+   if ((.not. option_set_it) .and. bytes*bytes2MB < 1._real64) then
       ! bump it up to 1000 iterations
-      options%itt = 1000
+      options%it = 1000
    end if
 
    ! At this point we should have:
    ! big_n == total number of elements *per array*
    ! n == elements along the distributed array dimension (<= big_n)
-
-   method_str = trim(method_str)//":"//dtype_str
 
    if (debug) then
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
@@ -428,8 +451,8 @@ program main
       write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
       write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_size*narrays/(8*1024**2)
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
-      write (OUTPUT_UNIT, debug_fmt_i) "warmup_itt", options%warmup_itt
-      write (OUTPUT_UNIT, debug_fmt_i) "itt", options%itt
+      write (OUTPUT_UNIT, debug_fmt_i) "warmup_it", options%warmup_it
+      write (OUTPUT_UNIT, debug_fmt_i) "it", options%it
    end if
 
    ! OpenMP information
@@ -442,7 +465,7 @@ program main
    end if
 
    ! Allocate the timings
-   call results%allocate(options%itt)
+   call results%allocate(options%it)
 
    call benchmark(n, options, results)
 
@@ -459,6 +482,7 @@ program main
 
    if (rank_mpi == 0) then
 
+      write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(dtype_str)
       write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
       select type (kernel => options%kernel)
       type is (option_kernel_do_t)
@@ -721,5 +745,103 @@ contains
       end do
 
    end function lcase
+
+   subroutine print_help()
+
+      character(len=256) :: arg
+      integer :: len_arg
+
+      character(len=*), parameter :: fmt_opt_a = "(t5,'--',a,t25,': ',a)"
+      character(len=*), parameter :: fmt_oa = "(t25,'  ',a)"
+      character(len=*), parameter :: fmt_arg_a = "(t5,'  ',a,t20,': ',a)"
+      character(len=*), parameter :: fmt_aa = "(t25,'  ',a)"
+      character(len=*), parameter :: fmt_nl = "(a)"
+
+      ! Get executable name
+      call get_command_argument(0, arg, length=len_arg)
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, '(2a)') "OpenMP benchmark program: ", trim(arg)
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program with more option."
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, '(a)') "Options:"
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "debug", "print-out additional debug information"
+
+      write (OUTPUT_UNIT, fmt_opt_a) "env", "print-out OpenMP environment understanding"
+      write (OUTPUT_UNIT, fmt_oa) "Will print a lot of information related to how"
+      write (OUTPUT_UNIT, fmt_oa) "OpenMP can place its threads."
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
+      write (OUTPUT_UNIT, fmt_oa) " - do -> use parallel do clause"
+      write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - taskloop -> use parallel taskloop clause"
+      write (OUTPUT_UNIT, fmt_oa) "   the default grainsize is 1, use OMP_SCHEDULE chunksize for size"
+      write (OUTPUT_UNIT, fmt_oa) "   E.g. OMP_SCHEDULE=static,1000"
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
+      write (OUTPUT_UNIT, fmt_oa) " - real32|32 -> 4-byte real"
+      write (OUTPUT_UNIT, fmt_oa) " - real64|64 -> 8-byte real [default]"
+      write (OUTPUT_UNIT, fmt_oa) " - real128|128 -> 16-byte real"
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "first-touch", "use first-touch for arrays [default]"
+      write (OUTPUT_UNIT, fmt_opt_a) "no-first-touch", "only let one thread initialize the arrays"
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "n", "the size of all arrays involved in the method"
+      write (OUTPUT_UNIT, fmt_oa) "E.g. --n 2kB will allocate 2kB of memory"
+      write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB and GB."
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "warmup", "how many warm-up iterations are done before timing"
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, '(a)') "The following argument options lists the names of the"
+      write (OUTPUT_UNIT, '(a)') "methods, and *what* they do."
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_arg_a) "fill", "a(:) = 2."
+      write (OUTPUT_UNIT, fmt_arg_a) "sum", "res = sum(a)"
+      write (OUTPUT_UNIT, fmt_arg_a) "add", "a = b + c"
+      write (OUTPUT_UNIT, fmt_arg_a) "copy", "a = b"
+      write (OUTPUT_UNIT, fmt_arg_a) "scale", "a = b * 2"
+      write (OUTPUT_UNIT, fmt_arg_a) "axpy", "a = a + b * 2"
+      write (OUTPUT_UNIT, fmt_arg_a) "triad", "a = b + c * 2"
+      write (OUTPUT_UNIT, fmt_arg_a) "fs-triad", "a = b + c * 2"
+      write (OUTPUT_UNIT, fmt_aa) "Forcefully access arrays in false-sharing."
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "Examples:"
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -n 2MB axpy"
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "runs the axpy code, using 3 arrays totalling 2MB of memory."
+
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -no-first-touch -kernel taskloop -dtype 32 -n 2GB triad -it 200 -warmup 2"
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, 4-byte reals, 3 arrays of total 2GB,"
+      write (OUTPUT_UNIT, fmt_nl) "running 2 warmup iterations, then 200 iterations, without first-touch of the arrays."
+
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "Output of the command."
+
+      write (OUTPUT_UNIT, fmt_nl) "Running the benchmark routine returns data in the following columns:"
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "DTYPE METHOD KERNEL TIME_MIN TIME_AVG TIME_STD TIME_MAX MEM_MB BANDWIDTH_GBS GFLOPS"
+
+      write (OUTPUT_UNIT, fmt_nl)
+   end subroutine
 
 end program
