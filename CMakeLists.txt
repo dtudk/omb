@@ -49,6 +49,16 @@ find_package(OpenMP REQUIRED
 include(cmake/ombOpenMPOptions.cmake)
 
 
+# Generally we do not need the rt library.
+# However, it should provide extended runtime precision for timers.
+# For GCC this is implicitly linked when using OpenMP.
+# So currently not really used...
+find_library(SysLib_rt
+  rt
+  DOC "The runtime library for extended timing precision."
+)
+
+
 find_package(MPI
   COMPONENTS Fortran)
 
@@ -57,11 +67,10 @@ if( OMB_WITH_MPI )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_MPI=1")
 endif()
 
-# create library.
+
+# Add the sources for the binary
 add_subdirectory(src)
 
-
-# Now for installing stuff.
 
 # Globally define a place where we will install
 # cmake configuration stuff, *Target.cmake *Version.cmake etc.

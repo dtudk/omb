@@ -18,7 +18,8 @@ program main
    ! to give same results for C/C++.
    ! Generally, the OpenMP implementation is a bit
    ! behind for fortran compilers.
-   use timing_m, only: timing_t
+   use timing_m, only: timing_initialize, timing_get_sys_rate
+   use timing_m, only: timing_get_sys_max
    use options_m
    use results_m, only: results_t
    use benchmarks_m ! ALL
@@ -84,6 +85,9 @@ program main
       integer(OMP_SCHED_KIND) :: sched
       call omp_get_schedule(sched, chunk_size)
    end block
+
+   ! Initialize the timing
+   call timing_initialize()
 
    block
       integer :: nargs
@@ -480,7 +484,7 @@ program main
 
    #:endif
 
-   if (rank_mpi == 0) then
+   if (rank_mpi == 0 .and. .not. info_env) then
 
       write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(dtype_str)
       write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
@@ -563,7 +567,9 @@ contains
 
       ! If you ever have more places than 256 (threads etc.)
       ! then bump up the values below
+      character(len=*), parameter :: sys_fmt_i = "('sys ',a,t35,':',256(tr1,i0))"
       character(len=*), parameter :: omp_fmt_i = "('omp ',a,t35,':',256(tr1,i0))"
+      character(len=*), parameter :: omp_fmt_da = "('omp ',a,t35,':',tr1,f0.10,tr1,a)"
       character(len=*), parameter :: omp_fmt_l = "('omp ',a,t35,':',256(tr1,l0))"
       character(len=*), parameter :: omp_fmt_a = "('omp ',a,t35,':',256(tr1,a))"
       character(len=*), parameter :: omp_fmt_p_i = "('omp ',a,t28,'[',i0,']',t35,':',256(tr1,i0))"
@@ -595,6 +601,30 @@ contains
       ! Generic OMP information
 
 !$omp single
+
+      ! Currently there is a bug in GCC that won't allow a single construct
+      ! to start with a `block`. So we purposefully put the sys-printouts here
+      ! But in reality I would have liked them outside the parallel construct.
+
+      ! Generic system information
+      write (OUTPUT_UNIT, sys_fmt_i) "system_clock_rate", timing_get_sys_rate()
+      write (OUTPUT_UNIT, sys_fmt_i) "system_clock_max", timing_get_sys_max()
+
+      ! Get information on the tick precision.
+      block
+         real(real64) :: wtick
+         wtick = omp_get_wtick()
+         if (wtick < 1e-9_real64) then
+            write (OUTPUT_UNIT, omp_fmt_da) "wtick", wtick*1e12, "ps"
+         else if (wtick < 1e-6_real64) then
+            write (OUTPUT_UNIT, omp_fmt_da) "wtick", wtick*1e9, "ns"
+         else if (wtick < 1e-3_real64) then
+            write (OUTPUT_UNIT, omp_fmt_da) "wtick", wtick*1e6, "us"
+         else
+            write (OUTPUT_UNIT, omp_fmt_da) "wtick", wtick*1e3, "ms"
+         end if
+      end block
+
       write (OUTPUT_UNIT, omp_fmt_i) "max_threads", omp_get_max_threads()
       write (OUTPUT_UNIT, omp_fmt_i) "num_threads", omp_get_num_threads()
       write (OUTPUT_UNIT, omp_fmt_i) "num_procs", omp_get_num_procs()

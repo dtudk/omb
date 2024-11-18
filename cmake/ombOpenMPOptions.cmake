@@ -16,8 +16,8 @@ print * , omp_get_place_num()
 print * , omp_get_place_num_procs(0)
 !$omp end parallel
 end")
-check_fortran_source_compiles("${source}" f90_omp_places SRC_EXT f90)
-CHECK_PASS_FAIL( f90_omp_places REQUIRED )
+check_fortran_source_compiles("${source}" f_omp_places SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_places REQUIRED )
 
 CHECK_START("* has device information")
 set(source "
@@ -28,9 +28,9 @@ print * , omp_get_default_device()
 print * , omp_get_device_num()
 !$omp end parallel
 end")
-check_fortran_source_compiles("${source}" f90_omp_device SRC_EXT f90)
-CHECK_PASS_FAIL( f90_omp_device )
-if( NOT f90_omp_device )
+check_fortran_source_compiles("${source}" f_omp_device SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_device )
+if( NOT f_omp_device )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_DEVICE=0")
 endif()
 
@@ -42,9 +42,9 @@ print * , omp_get_num_teams()
 print * , omp_get_team_num()
 !$omp end parallel
 end")
-check_fortran_source_compiles("${source}" f90_omp_teams SRC_EXT f90)
-CHECK_PASS_FAIL( f90_omp_teams )
-if( NOT f90_omp_teams )
+check_fortran_source_compiles("${source}" f_omp_teams SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_teams )
+if( NOT f_omp_teams )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TEAMS=0")
 endif()
 
@@ -55,9 +55,9 @@ use omp_lib
 print * , omp_get_partition_num_places()
 !$omp end parallel
 end")
-check_fortran_source_compiles("${source}" f90_omp_partition SRC_EXT f90)
-CHECK_PASS_FAIL( f90_omp_partition )
-if( NOT f90_omp_partition )
+check_fortran_source_compiles("${source}" f_omp_partition SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_partition )
+if( NOT f_omp_partition )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PARTITION=0")
 endif()
 

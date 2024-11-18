@@ -21,6 +21,7 @@
 #
 #      Specifies how the internal openmp schedule is done for the
 #      loops. If not specified it will default to 'static'.
+#      The chunk-size is by default determined by the implementation.
 #
 # 2. Then the 'omb' code is executed to get information about the
 #    allowed places and how many threads etc.
@@ -87,9 +88,9 @@ if [ -z "$OMP_SCHEDULE" ]; then
   export OMP_SCHEDULE=static
 fi
 
-loop=1
+_only_one=0
 if [ "$1" == "no-loop" ]; then
-  loop=0
+  _only_one=1
   shift
 fi
 
@@ -123,8 +124,8 @@ num_places=${num_places/ /}
 # At least not in this script.
 if [ $num_places -lt $num_threads ]; then
   echo >&2 "$_prefix got fewer places than threads"
-  echo >&2 "$_prefix omp_num_places  = $num_places"
-  echo >&2 "$_prefix omp_num_threads = $num_threads"
+  echo >&2 "$_prefix   omp_num_places  = $num_places"
+  echo >&2 "$_prefix   omp_num_threads = $num_threads"
   echo >&2 "$_prefix cannot perform a meaningful benchmark... Quitting..."
 
   error_show_tmp
@@ -181,7 +182,7 @@ fmt="%${max_len}s"
 # OMP_NUM_THREADS X-nested loop construct.
 declare -a bench_places
 
-loop_bench_places_step() {
+function loop_bench_places_step {
   local id=$1
   shift
 
@@ -220,7 +221,7 @@ loop_bench_places_step() {
   fi
 }
 
-loop_bench_places() {
+function loop_bench_places {
   local id
 
   if [ ${#bench_places[@]} -eq 0 ]; then
@@ -232,6 +233,7 @@ loop_bench_places() {
     done
     return 0
   fi
+
   loop_bench_places_step $((num_threads - 1))
   return $?
 }
@@ -239,6 +241,8 @@ loop_bench_places() {
 function run_bench_places {
   local id
 
+  # Incrementally add to OMP_PLACES until all places has been
+  # specified.
   OMP_PLACES=
   for id in ${bench_places[@]}
   do
@@ -267,7 +271,7 @@ while [ $? -eq 0 ]; do
     exit $retval
   fi
 
-  [ $loop -eq 0 ] && break
+  [ $_only_one -eq 1 ] && break
   loop_bench_places
 done
 

@@ -62,8 +62,8 @@ use, intrinsic :: iso_fortran_env, only : real64, int32, real128
 real(real64) :: x
 x = x+1._real64
 end")
-check_fortran_source_compiles("${source}" f90_iso_fortran_env SRC_EXT f90)
-CHECK_PASS_FAIL( f90_iso_fortran_env REQUIRED)
+check_fortran_source_compiles("${source}" f_iso_fortran_env SRC_EXT f90)
+CHECK_PASS_FAIL( f_iso_fortran_env REQUIRED)
 
 
 CHECK_START("* has CONTIGUOUS")
@@ -71,8 +71,8 @@ CHECK_START("* has CONTIGUOUS")
 set(source "
 real, pointer, contiguous :: x(:)
 end")
-check_fortran_source_compiles("${source}" f90_contiguous SRC_EXT f90)
-CHECK_PASS_FAIL( f90_contiguous REQUIRED)
+check_fortran_source_compiles("${source}" f_contiguous SRC_EXT f90)
+CHECK_PASS_FAIL( f_contiguous REQUIRED)
 
 if( error_fortran )
   message(FATAL_ERROR "Some fortran features are not available, please select another compiler")
@@ -87,8 +87,8 @@ type, extends(options_t) :: options_1_t
 integer :: i
 end type
 end")
-check_fortran_source_compiles("${source}" f90_oop SRC_EXT f90)
-CHECK_PASS_FAIL( f90_oop REQUIRED)
+check_fortran_source_compiles("${source}" f_oop SRC_EXT f90)
+CHECK_PASS_FAIL( f_oop REQUIRED)
 
 
 if( error_fortran )
