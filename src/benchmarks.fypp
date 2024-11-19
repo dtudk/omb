@@ -17,7 +17,7 @@ module benchmarks_m
 
    ! Define the different methods for benchmarks
    use iso_fortran_env, only: real32, real64, real128
-   use iso_fortran_env, only: ${OMB_SIZE_TYPE}$
+   use iso_fortran_env, only: ${OMB_INT_TYPE}$
 
    use options_m
    use results_m, only: results_t
@@ -50,10 +50,10 @@ module benchmarks_m
    public :: benchmark_method
    interface
       subroutine benchmark_method(n, options, results)
-         use iso_fortran_env, only: ${OMB_SIZE_TYPE}$
+         use iso_fortran_env, only: ${OMB_INT_TYPE}$
          use options_m, only: options_t
          use results_m, only: results_t
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
       end subroutine
@@ -82,10 +82,10 @@ contains
    #:for real in REALS
 
       subroutine first_touch_${real}$ (n, a)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
 
 !$omp do private(i) schedule(runtime)
          do i = 1, n
@@ -96,10 +96,10 @@ contains
       end subroutine
 
       subroutine single_touch_${real}$ (n, a)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
 
 !$omp single
          do i = 1, n
@@ -110,11 +110,11 @@ contains
       end subroutine
 
       subroutine init_array_${real}$ (n, a, options)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
          type(options_t), intent(in):: options
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          real(${real}$) :: sum
          integer :: it
 
@@ -139,11 +139,11 @@ contains
       end subroutine
 
       subroutine bench_sum_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: it
          type(timing_t) :: timing
 
@@ -202,11 +202,11 @@ contains
       end subroutine
 
       subroutine bench_fill_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: it
          type(timing_t) :: timing
 
@@ -266,11 +266,11 @@ contains
       end subroutine
 
       subroutine bench_copy_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: it
          type(timing_t) :: timing
 
@@ -329,11 +329,11 @@ contains
       end subroutine
 
       subroutine bench_scale_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: it
          type(timing_t) :: timing
 
@@ -394,11 +394,11 @@ contains
       end subroutine
 
       subroutine bench_add_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: it
          type(timing_t) :: timing
 
@@ -458,11 +458,11 @@ contains
       end subroutine
 
       subroutine bench_triad_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: it
          type(timing_t) :: timing
 
@@ -523,14 +523,14 @@ contains
       end subroutine
 
       subroutine bench_axpy_${real}$ (n, options, results)
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
          integer :: it
          type(timing_t) :: timing
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          real(${real}$) :: scale
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
@@ -589,11 +589,11 @@ contains
 
       subroutine bench_false_sharing_triad_${real}$ (n, options, results)
          use omp_lib, only: omp_get_num_threads, omp_get_thread_num
-         integer(${OMB_SIZE_TYPE}$), intent(in) :: n
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_SIZE_TYPE}$) :: i
+         integer(${OMB_INT_TYPE}$) :: i
          integer :: nthreads, id
          integer :: it
          type(timing_t) :: timing

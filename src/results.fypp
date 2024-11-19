@@ -2,7 +2,7 @@
 
 module results_m
 
-   use iso_fortran_env, only: real64, ${OMB_SIZE_TYPE}$
+   use iso_fortran_env, only: real64, ${OMB_INT_TYPE}$
 
    implicit none
 
@@ -61,13 +61,13 @@ contains
 
    end subroutine
 
-   subroutine update(this, narrays, n, elem_flop, elem_size)
+   subroutine update(this, narrays, n, elem_flop, elem_bits)
       class(results_t), intent(inout) :: this
-      integer :: narrays, elem_flop, elem_size
-      integer(${OMB_SIZE_TYPE}$) :: n
+      integer :: narrays, elem_flop, elem_bits
+      integer(${OMB_INT_TYPE}$) :: n
 
       this%narrays = narrays
-      this%mem_mb = real(n, real64)*elem_size*narrays/(8._real64*1024**2)
+      this%mem_mb = real(n, real64)*elem_bits*narrays/(8._real64*1024**2)
       this%gflop = elem_flop*real(n, real64)/1000**3
 
    end subroutine

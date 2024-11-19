@@ -6,9 +6,9 @@
 #:else
    #:set OMB_ARRAY_ATTRIBUTES = ""
 #:endif
-#:if defined("OMB_SIZE_TYPE")
+#:if defined("OMB_INT_TYPE")
 #:else
-   #:set OMB_SIZE_TYPE = "int64"
+   #:set OMB_INT_TYPE = "int64"
 #:endif
 
 #:set REALS = ["real32", "real64", "real128"]

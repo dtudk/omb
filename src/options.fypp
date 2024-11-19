@@ -21,7 +21,7 @@ module options_m
    end type
 
    type, public, extends(option_kernel_t) :: option_kernel_taskloop_t
-      integer(${OMB_SIZE_TYPE}$) :: grainsize = 1
+      integer(${OMB_INT_TYPE}$) :: grainsize = 1
    end type
 
    type, public :: options_t
