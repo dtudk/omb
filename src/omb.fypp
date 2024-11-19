@@ -499,11 +499,11 @@ program main
          write (ERROR_UNIT, *) "Unknown kernel specification"
          stop 5
       end select
+      write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%mem_mb
       write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_min()
       write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_avg()
       write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_std()
       write (OUTPUT_UNIT, "(tr1,e0.8)", advance="no") results%time_max()
-      write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%mem_mb
       write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%bandwidth_gbs()
       write (OUTPUT_UNIT, "(tr1,f0.5)", advance="no") results%gflops()
       write (OUTPUT_UNIT, *) ""
@@ -869,7 +869,7 @@ contains
 
       write (OUTPUT_UNIT, fmt_nl) "Running the benchmark routine returns data in the following columns:"
       write (OUTPUT_UNIT, fmt_nl)
-      write (OUTPUT_UNIT, fmt_nl) "DTYPE METHOD KERNEL TIME_MIN TIME_AVG TIME_STD TIME_MAX MEM_MB BANDWIDTH_GBS GFLOPS"
+      write (OUTPUT_UNIT, fmt_nl) "DTYPE METHOD KERNEL MEM_MB TIME_MIN TIME_AVG TIME_STD TIME_MAX BANDWIDTH_GBS GFLOPS"
 
       write (OUTPUT_UNIT, fmt_nl)
    end subroutine
