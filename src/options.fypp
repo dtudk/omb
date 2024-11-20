@@ -26,9 +26,14 @@ module options_m
 
    type, public :: options_t
 
+      !< Number of iterations that are timed
       integer :: it = 20
+      !< Number of iterations that are *not* timed
       integer :: warmup_it = 1
+      !< Whether the arrays are using a distributed first-touch
       logical :: first_touch = .true.
+      !< Offset in allocation, just to ensure non-contiguity of array-allocations
+      integer :: offset = 0
       class(option_kernel_t), pointer :: kernel => null()
 
    end type

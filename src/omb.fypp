@@ -280,6 +280,19 @@ program main
                stop 4
             end if
 
+         case ("-offset", "--offset")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, --offset has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            read (arg, *) options%offset
+
          case ("help", "--help", "-help", "-h")
 
             call print_help()
@@ -335,13 +348,10 @@ program main
    select case (dtype)
    case (DTYPE_REAL32)
       elem_bits = storage_size(1._real32)
-      if (debug) write (OUTPUT_UNIT, debug_fmt_a) "dtype", "real32"
    case (DTYPE_REAL64)
       elem_bits = storage_size(1._real64)
-      if (debug) write (OUTPUT_UNIT, debug_fmt_a) "dtype", "real64"
    case (DTYPE_REAL128)
       elem_bits = storage_size(1._real128)
-      if (debug) write (OUTPUT_UNIT, debug_fmt_a) "dtype", "real128"
    case default
       write (ERROR_UNIT, *) "Unknown data-type!"
       stop 21
@@ -356,8 +366,6 @@ program main
    elem_bytes = elem_bits/8
 
    if (debug) then
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bytes]", elem_bytes
       write (OUTPUT_UNIT, debug_fmt_i) "target_bytes [B]", nint(bytes, int64)
    end if
 
@@ -445,8 +453,8 @@ program main
    bytes = real(big_n, real64)*elem_bits*narrays/8
    ! time the small memories.
    if ((.not. option_set_it) .and. bytes*bytes2MB < 1._real64) then
-      ! bump it up to 1000 iterations
-      options%it = 1000
+      ! bump it up to 100 iterations
+      options%it = 100
    end if
 
    ! At this point we should have:
@@ -454,6 +462,12 @@ program main
    ! n == elements along the distributed array dimension (<= big_n)
 
    if (debug) then
+      write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
+      write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
+      write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bits*narrays/(8*1024**2)
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bytes]", elem_bytes
+      write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       select type (kernel => options%kernel)
       type is (option_kernel_do_t)
@@ -464,11 +478,10 @@ program main
          write (OUTPUT_UNIT, "(a)") "taskloop"
       end select
       ! Important to use big_n
-      write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
-      write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bits*narrays/(8*1024**2)
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
       write (OUTPUT_UNIT, debug_fmt_i) "warmup_it", options%warmup_it
       write (OUTPUT_UNIT, debug_fmt_i) "it", options%it
+      write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
    end if
 
    ! OpenMP information
@@ -849,6 +862,8 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_opt_a) "offset", "number of elements added to each array for offsetting allocations"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_nl)

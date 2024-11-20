@@ -64,6 +64,11 @@ module benchmarks_m
          module procedure :: first_touch_${real}$
       #:endfor
    end interface
+   interface array_allocate
+      #:for real in REALS
+         module procedure :: array_allocate_${real}$
+      #:endfor
+   end interface
 
    interface single_touch
       #:for real in REALS
@@ -80,6 +85,21 @@ module benchmarks_m
 contains
 
    #:for real in REALS
+
+      subroutine array_allocate_${real}$ (n, a, options)
+         integer(${OMB_INT_TYPE}$), intent(in) :: n
+         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         type(options_t), intent(in) :: options
+
+         #:if ARRAY_IS_POINTER
+            nullify (a)
+         #:endif
+
+         ! Allocate etc.
+         allocate (a(n + options%offset))
+
+      end subroutine
 
       subroutine first_touch_${real}$ (n, a)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
@@ -138,6 +158,8 @@ contains
 
       end subroutine
 
+      ! Beginning of benchmark methods
+
       subroutine bench_sum_${real}$ (n, options, results)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
@@ -150,12 +172,8 @@ contains
          real(${real}$) :: sum_a
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a
-         #:if ARRAY_IS_POINTER
-            nullify (a)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n))
+         call array_allocate(n, a, options)
 
 !$omp parallel private(it,i) shared(n,a,sum_a)
 
@@ -213,12 +231,9 @@ contains
          real(${real}$) :: fill
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a
-         #:if ARRAY_IS_POINTER
-            nullify (a)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n))
+         call array_allocate(n, a, options)
+
          fill = 2._${real}$
 
 !$omp parallel private(it,i) shared(n,a,fill)
@@ -276,12 +291,9 @@ contains
 
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
-         #:if ARRAY_IS_POINTER
-            nullify (a, b)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n), b(n))
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
 
 !$omp parallel private(it,i) shared(n,a,b)
 
@@ -340,12 +352,10 @@ contains
          real(${real}$) :: scale
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
-         #:if ARRAY_IS_POINTER
-            nullify (a, b)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n), b(n))
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
+
          scale = 2._${real}$
 
 !$omp parallel private(it,i) shared(n,a,b,scale)
@@ -404,12 +414,10 @@ contains
 
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
-         #:if ARRAY_IS_POINTER
-            nullify (a, b, c)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n), b(n), c(n))
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
+         call array_allocate(n, c, options)
 
 !$omp parallel private(it,i) shared(n,a,b,c)
 
@@ -469,12 +477,11 @@ contains
          real(${real}$) :: scale
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
-         #:if ARRAY_IS_POINTER
-            nullify (a, b, c)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n), b(n), c(n))
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
+         call array_allocate(n, c, options)
+
          scale = 2._${real}$
 
 !$omp parallel private(it,i) shared(n,a,b,c,scale)
@@ -534,12 +541,10 @@ contains
          real(${real}$) :: scale
          real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
-         #:if ARRAY_IS_POINTER
-            nullify (a, b)
-         #:endif
 
-         ! Allocate etc.
-         allocate (a(n), b(n))
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
+
          scale = 2._${real}$
 
 !$omp parallel private(it) shared(n,a,b,scale)
@@ -601,6 +606,7 @@ contains
          real(${real}$) :: scale
          real(${real}$), dimension(:, :), ${OMB_ARRAY_ALLOC_TYPE}$ &
             ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+
          #:if ARRAY_IS_POINTER
             nullify (a, b, c)
          #:endif
