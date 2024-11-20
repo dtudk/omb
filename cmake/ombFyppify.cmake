@@ -68,7 +68,6 @@ function(omb_fyppify)
  if(NOT DEFINED _fyppify_FILES)
    message(FATAL_ERROR "fyppify requires FILES arguments to determine which files to preprocess")
  endif()
- list(JOIN _fyppify_FLAGS " " _fyppify_FLAGS_JOINED)
 
  #[==[
  message(INFO "After parsing inputs:
@@ -79,10 +78,10 @@ function(omb_fyppify)
  FLAGS=${_fyppify_FLAGS}
  FILES=${_fyppify_FILES}
  ")
- ]==]
+ #]==]
 
  # Lets do the preprocessing
- omb_preprocess("${_fyppify_FYPP}" "${_fyppify_FLAGS_JOINED}"
+ omb_preprocess("${_fyppify_FYPP}" "${_fyppify_FLAGS}"
    "${_fyppify_EXTIN}" "${_fyppify_EXTOUT}"
    "${_fyppify_FILES}" _outfiles)
  if(DEFINED _fyppify_OUTPUT)

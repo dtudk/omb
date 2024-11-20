@@ -91,7 +91,6 @@ program main
    block
       integer :: nargs
       integer :: iarg
-      integer :: len_arg
       character(len=256) :: arg
       integer :: idx, istr_size
       character(len=2), parameter :: STR_SIZES(6) = ["kb", "k ", "mb", "m ", "gb", "g "]
@@ -379,6 +378,13 @@ program main
    end if
    n = big_n
 
+   ! Determine number of threads in this run...
+!$omp parallel shared(options)
+!$omp single
+   options%num_threads = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+
    #:def CASE_DTYPE_BENCHMARK(name)
       select case (dtype)
          #:for real in REALS
@@ -431,18 +437,13 @@ program main
    case (METHOD_FALSE_SHARING_TRIAD)
       method_str = "falsesharing"
 
-      ! Correct n, so we have this per-thread
-!$omp parallel shared(n_dim2)
-!$omp single
-      n_dim2 = omp_get_num_threads()
-!$omp end single
-!$omp end parallel
+      n_dim2 = options%num_threads
 
       @:CASE_DTYPE_BENCHMARK(bench_false_sharing_triad)
 
    end select
 
-   ! Reduce n since the method multiplies by nthreads
+   ! Reduce n since the method multiplies by num_threads
    if (n_dim2 > 1) then
       n = max(1, nint(real(n, real64)/n_dim2))
       big_n = n*n_dim2
@@ -465,6 +466,8 @@ program main
       write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
       write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
       write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bits*narrays/(8*1024**2)
+      write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
+      write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bytes]", elem_bytes
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
@@ -608,7 +611,7 @@ contains
       character(len=*), parameter :: omp_fmt_t_ids = "('omp ','[',i0,']',tr1,a,t35,':',tr1,256(i0,:,','))"
       character(len=*), parameter :: omp_fmt_t_a = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,a))"
       character(len=2048) :: affinity_fmt, string
-      integer :: i, n, idx, chunk
+      integer :: i, n, chunk
       integer :: thread, io_thread
       integer :: proc_ids(2048)
       integer(OMP_SCHED_KIND) :: sched

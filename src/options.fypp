@@ -34,6 +34,8 @@ module options_m
       logical :: first_touch = .true.
       !< Offset in allocation, just to ensure non-contiguity of array-allocations
       integer :: offset = 0
+      !< Number of threads maximal available. Mainly used for special benchmarks
+      integer :: num_threads
       class(option_kernel_t), pointer :: kernel => null()
 
    end type

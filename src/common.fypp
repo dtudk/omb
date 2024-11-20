@@ -1,7 +1,10 @@
-#:if defined("OMB_ARRAY_ALLOC_TYPE")
+#:if defined("OMB_ALLOC_TYPE")
 #:else
-   #:set OMB_ARRAY_ALLOC_TYPE = "allocatable"
+   #:set OMB_ALLOC_TYPE = "stack"
 #:endif
+#:set ARRAY_IS_POINTER = bool("pointer" in "{}".format(OMB_ALLOC_TYPE).lower())
+#:set ARRAY_IS_STACK = bool("stack" in "{}".format(OMB_ALLOC_TYPE).lower())
+
 #:if defined("OMB_ARRAY_ATTRIBUTES")
 #:else
    #:set OMB_ARRAY_ATTRIBUTES = ""
@@ -12,7 +15,6 @@
 #:endif
 
 #:set REALS = ["real32", "real64", "real128"]
-#:set ARRAY_IS_POINTER = bool("pointer" in "${OMB_ARRAY_ALLOC_TYPE}$".lower())
 
 #:if defined("OMB_OMP_DEVICE")
 #:else

@@ -40,18 +40,29 @@ include(cmake/ombFyppify.cmake)
 include(cmake/ombOptions.cmake)
 include(cmake/ombDefaultFlags.cmake)
 
-# Now figure out how the tools should be used.
-set(OMB_INT_TYPE "int64" CACHE STRING "Size of integers used in loop constructs (type
-named according to iso_fortran_env).")
-set_property(CACHE OMB_INT_TYPE PROPERTY STRINGS int32 int64)
-
-# Append choice to fypp flags
-list(APPEND OMB_FYPP_FLAGS -DOMB_INT_TYPE="'${OMB_INT_TYPE}'")
-
 find_package(OpenMP REQUIRED
   COMPONENTS Fortran)
 
 include(cmake/ombOpenMPOptions.cmake)
+
+
+# Now figure out how the tools should be used.
+set(OMB_INT_TYPE "int64" CACHE STRING "Size of integers used in loop constructs (type
+named according to iso_fortran_env).")
+set_property(CACHE OMB_INT_TYPE
+  PROPERTY STRINGS int32 int64)
+
+# Append choice to fypp flags
+list(APPEND OMB_FYPP_FLAGS -DOMB_INT_TYPE="'${OMB_INT_TYPE}'")
+
+# Determine whether arrays should be allocated, or stack-bound
+set(OMB_ALLOC_TYPE "stack" CACHE STRING "How the arrays are constructed
+[allocatable, pointer, stack].")
+set_property(CACHE OMB_ALLOC_TYPE
+  PROPERTY STRINGS allocatable pointer stack)
+
+# Append choice to fypp flags
+list(APPEND OMB_FYPP_FLAGS -DOMB_ALLOC_TYPE="'${OMB_ALLOC_TYPE}'")
 
 
 # Generally we do not need the rt library.

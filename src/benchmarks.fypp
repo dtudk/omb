@@ -1,5 +1,6 @@
 #:include "common.fypp"
 
+! Start timing fypp method
 #:def START_TIMING()
    ! just to ensure we are aligned before the single
    !$omp barrier
@@ -8,9 +9,32 @@
    !$omp end single nowait
 #:enddef
 
+! Short for doing type-is AND start timing
 #:def TYPE_IS(name)
    type is (${name}$)
    @:START_TIMING()
+#:enddef
+
+! Since we allow multiple variations of array definitions.
+! The complexity is hidden in the ARRAY_DEFINE method.
+#:def ARRAY_DEFINE(dtype, size, *names)
+   #:for name in names
+      #:if ARRAY_IS_STACK
+         real(${dtype}$) :: ${name}$ (${size}$)
+      #:else
+         real(${dtype}$), ${OMB_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: ${name}$ (:)
+      #:endif
+   #:endfor
+#:enddef ARRAY_DEFINE
+! Since we allow multiple variations of array definitions.
+! The complexity is hidden in the ARRAY_DEALLOC method.
+#:def ARRAY_DEALLOC(*names)
+   #:for name in names
+      #:if not ARRAY_IS_STACK
+         deallocate (${name}$)
+      #:endif
+   #:endfor
 #:enddef
 
 module benchmarks_m
@@ -88,16 +112,22 @@ contains
 
       subroutine array_allocate_${real}$ (n, a, options)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         #:if ARRAY_IS_STACK
+            real(${real}$), intent(inout) :: a(n)
+         #:else
+            real(${real}$), dimension(:), intent(inout), ${OMB_ALLOC_TYPE}$ &
+               ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         #:endif
          type(options_t), intent(in) :: options
 
          #:if ARRAY_IS_POINTER
             nullify (a)
          #:endif
 
-         ! Allocate etc.
-         allocate (a(n + options%offset))
+         #:if not ARRAY_IS_STACK
+            ! Allocate etc.
+            allocate (a(n + options%offset))
+         #:endif
 
       end subroutine
 
@@ -170,8 +200,7 @@ contains
          type(timing_t) :: timing
 
          real(${real}$) :: sum_a
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a)
 
          call array_allocate(n, a, options)
 
@@ -215,7 +244,7 @@ contains
 
          call results%update(1, n, 1, storage_size(1.0_${real}$))
 
-         deallocate (a)
+         @:ARRAY_DEALLOC(a)
 
       end subroutine
 
@@ -229,8 +258,7 @@ contains
          type(timing_t) :: timing
 
          real(${real}$) :: fill
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a)
 
          call array_allocate(n, a, options)
 
@@ -276,7 +304,7 @@ contains
 
          call results%update(1, n, 0, storage_size(1.0_${real}$))
 
-         deallocate (a)
+         @:ARRAY_DEALLOC(a)
 
       end subroutine
 
@@ -289,8 +317,7 @@ contains
          integer :: it
          type(timing_t) :: timing
 
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
@@ -336,7 +363,7 @@ contains
 
          call results%update(2, n, 0, storage_size(1.0_${real}$))
 
-         deallocate (a, b)
+         @:ARRAY_DEALLOC(a, b)
 
       end subroutine
 
@@ -350,8 +377,7 @@ contains
          type(timing_t) :: timing
 
          real(${real}$) :: scale
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
@@ -399,7 +425,7 @@ contains
 
          call results%update(2, n, 1, storage_size(1.0_${real}$))
 
-         deallocate (a, b)
+         @:ARRAY_DEALLOC(a, b)
 
       end subroutine
 
@@ -412,8 +438,7 @@ contains
          integer :: it
          type(timing_t) :: timing
 
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a, b, c)
 
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
@@ -461,7 +486,7 @@ contains
 
          call results%update(3, n, 1, storage_size(1.0_${real}$))
 
-         deallocate (a, b, c)
+         @:ARRAY_DEALLOC(a, b, c)
 
       end subroutine
 
@@ -475,8 +500,7 @@ contains
          type(timing_t) :: timing
 
          real(${real}$) :: scale
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a, b, c)
 
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
@@ -525,7 +549,7 @@ contains
 
          call results%update(3, n, 2, storage_size(1.0_${real}$))
 
-         deallocate (a, b, c)
+         @:ARRAY_DEALLOC(a, b, c)
 
       end subroutine
 
@@ -539,8 +563,7 @@ contains
 
          integer(${OMB_INT_TYPE}$) :: i
          real(${real}$) :: scale
-         real(${real}$), dimension(:), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
@@ -588,44 +611,47 @@ contains
 
          call results%update(2, n, 2, storage_size(1.0_${real}$))
 
-         deallocate (a, b)
+         @:ARRAY_DEALLOC(a, b)
 
       end subroutine
 
       subroutine bench_false_sharing_triad_${real}$ (n, options, results)
-         use omp_lib, only: omp_get_num_threads, omp_get_thread_num
+         use omp_lib, only: omp_get_thread_num
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: nthreads, id
-         integer :: it
+         integer :: id, it
          type(timing_t) :: timing
 
          real(${real}$) :: scale
-         real(${real}$), dimension(:, :), ${OMB_ARRAY_ALLOC_TYPE}$ &
-            ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+
+         #:if ARRAY_IS_STACK
+            real(${real}$), dimension(options%num_threads, n + options%offset) :: a, b, c
+         #:else
+            real(${real}$), dimension(:, :), ${OMB_ALLOC_TYPE}$ &
+               ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
+         #:endif
 
          #:if ARRAY_IS_POINTER
             nullify (a, b, c)
          #:endif
-!$omp parallel shared(nthreads)
-!$omp single
-         nthreads = omp_get_num_threads()
-!$omp end single
-!$omp end parallel
 
-         ! Allocate etc.
-         allocate (a(nthreads, n), b(nthreads, n), c(nthreads, n))
+         #:if not ARRAY_IS_STACK
+            allocate (a(options%num_threads, n + options%offset))
+            allocate (b(options%num_threads, n + options%offset))
+            allocate (c(options%num_threads, n + options%offset))
+         #:endif
+
          scale = 2._${real}$
 
-!$omp parallel private(it,i,id) shared(n,a,b,scale,nthreads)
+!$omp parallel private(it,i,id) shared(n,a,b,scale,options)
 
          ! Direct call to omit interface constructs
-         call init_array_${real}$ (nthreads*n, a, options)
-         call init_array_${real}$ (nthreads*n, b, options)
-         call init_array_${real}$ (nthreads*n, c, options)
+         call init_array_${real}$ (options%num_threads*n, a, options)
+         call init_array_${real}$ (options%num_threads*n, b, options)
+         call init_array_${real}$ (options%num_threads*n, c, options)
 
          ! Get local thread-id
          id = omp_get_thread_num() + 1
@@ -649,9 +675,9 @@ contains
 
 !$omp end parallel
 
-         call results%update(3, nthreads*n, 2, storage_size(1.0_${real}$))
+         call results%update(3, options%num_threads*n, 2, storage_size(1.0_${real}$))
 
-         deallocate (a, b, c)
+         @:ARRAY_DEALLOC(a, b, c)
 
       end subroutine
 
