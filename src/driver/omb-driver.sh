@@ -88,11 +88,21 @@ if [ -z "$OMP_SCHEDULE" ]; then
   export OMP_SCHEDULE=static
 fi
 
+# Define options here
+_args=()
 _only_one=0
-if [ "$1" == "no-loop" ]; then
-  _only_one=1
+while [ $# -gt 0 ]; do
+  case $1 in
+    -Dno-loop)
+      _only_one=1
+      ;;
+    *)
+      _args+=($1)
+      ;;
+  esac
   shift
-fi
+done
+
 
 function error_show_tmp() {
   # Simple function to show the temporary content, mainly for debugging
@@ -253,7 +263,7 @@ function run_bench_places {
 
   # Write out so it can be tabularized
   # Remove initial `,`, then run!
-  OMP_PLACES="${OMP_PLACES:1}" $OMB_EXE $@
+  OMP_PLACES="${OMP_PLACES:1}" $OMB_EXE ${_args[@]}
   return $?
 }
 
@@ -261,7 +271,7 @@ function run_bench_places {
 loop_bench_places
 while [ $? -eq 0 ]; do
 
-  run_bench_places $@
+  run_bench_places
   retval=$?
   if [[ $retval -ne 0 ]]; then
     echo >&2 "$_prefix failed to run place = ${bench_places[@]}"
