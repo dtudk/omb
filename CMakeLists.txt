@@ -84,8 +84,9 @@ if( OMB_WITH_MPI )
 endif()
 
 
-# Add the sources for the binary
+# Add the sources for the binary and drivers
 add_subdirectory(src)
+add_subdirectory(driver)
 
 
 # Globally define a place where we will install

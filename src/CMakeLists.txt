@@ -32,5 +32,3 @@ install(
   TARGETS omb
   EXPORT ${PROJECT_NAME}-targets
 )
-
-add_subdirectory(driver)
