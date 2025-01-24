@@ -30,13 +30,14 @@ program main
    character(len=*), parameter :: debug_fmt_i = "(a,t35,':',256(tr1,i0))"
    character(len=*), parameter :: debug_fmt_l = "(a,t35,':',256(tr1,l0))"
    character(len=*), parameter :: debug_fmt_e = "(a,t35,':',256(tr1,e0.10))"
+
    ! narrays highly linked to default method
    integer :: narrays = 3
    integer :: method = METHOD_TRIAD
 
-   integer, parameter :: DTYPE_REAL32 = 0
-   integer, parameter :: DTYPE_REAL64 = 1
-   integer, parameter :: DTYPE_REAL128 = 2
+   integer, parameter :: DTYPE_REAL32 = 1
+   integer, parameter :: DTYPE_REAL64 = 2
+   integer, parameter :: DTYPE_REAL128 = 3
    integer :: dtype = DTYPE_REAL64
 
    procedure(benchmark_method), pointer :: benchmark => null()
@@ -60,6 +61,7 @@ program main
 
    logical :: debug = .false.
    logical :: info_env = .false.
+   logical :: dryrun = .false.
 
    logical :: option_set_it = .false.
 
@@ -292,6 +294,10 @@ program main
 
             read (arg, *) options%offset
 
+         case ("norun", "-dryrun", "--dryrun")
+
+            dryrun = .true.
+
          case ("help", "--help", "-help", "-h")
 
             call print_help()
@@ -496,54 +502,57 @@ program main
       #:endif
    end if
 
-   ! Allocate the timings
-   call results%allocate(options%it)
+   if (.not. dryrun) then ! only run in this case
 
-   call benchmark(n, options, results)
+      ! Allocate the timings
+      call results%allocate(options%it)
 
-   ! Reduce the results
+      call benchmark(n, options, results)
 
-   #:if defined('OMB_MPI')
+      ! Reduce the results
 
-      if (size_mpi > 1) then
-         ! Only reduce, if we have more than 1 processor
-         call results%reduce_mpi(results)
+      #:if defined('OMB_MPI')
+
+         if (size_mpi > 1) then
+            ! Only reduce, if we have more than 1 processor
+            call results%reduce_mpi(results)
+         end if
+
+      #:endif
+
+      if (rank_mpi == 0 .and. .not. info_env) then
+
+         write (OUTPUT_UNIT, "(tr1,i0)", advance="no") elem_bytes
+         if (options%first_touch) then
+            write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 1
+         else
+            write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 0
+         end if
+         write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
+         select type (kernel => options%kernel)
+         type is (option_kernel_do_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
+         type is (option_kernel_workshare_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
+         type is (option_kernel_taskloop_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
+         class default
+            write (ERROR_UNIT, *) "Unknown kernel specification"
+            stop 5
+         end select
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%mem_mb
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_min()
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_avg()
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_std()
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_max()
+         write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%bandwidth_gbs()
+         write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%gflops()
+         write (OUTPUT_UNIT, *) ""
+
+         flush OUTPUT_UNIT
+
       end if
-
-   #:endif
-
-   if (rank_mpi == 0 .and. .not. info_env) then
-
-      write (OUTPUT_UNIT, "(tr1,i0)", advance="no") elem_bytes
-      if (options%first_touch) then
-         write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 1
-      else
-         write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 0
-      end if
-      write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
-      select type (kernel => options%kernel)
-      type is (option_kernel_do_t)
-         write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
-      type is (option_kernel_workshare_t)
-         write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
-      type is (option_kernel_taskloop_t)
-         write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
-      class default
-         write (ERROR_UNIT, *) "Unknown kernel specification"
-         stop 5
-      end select
-      write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%mem_mb
-      write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_min()
-      write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_avg()
-      write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_std()
-      write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_max()
-      write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%bandwidth_gbs()
-      write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%gflops()
-      write (OUTPUT_UNIT, *) ""
-
-      flush OUTPUT_UNIT
-
-   end if
+   end if !dryrun
 
    #:if defined('OMB_MPI')
       call MPI_Finalize(ierr_mpi)

@@ -225,11 +225,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize) reduction(+:sum_a)
                do i = 1, n
                   sum_a = sum_a + a(i)
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
@@ -285,11 +287,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
                do i = 1, n
                   a(i) = fill
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
@@ -344,11 +348,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
                do i = 1, n
                   a(i) = b(i)
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
@@ -406,11 +412,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
                do i = 1, n
                   a(i) = scale*b(i)
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
@@ -467,11 +475,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
                do i = 1, n
                   a(i) = b(i) + c(i)
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
@@ -530,11 +540,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
                do i = 1, n
                   a(i) = b(i) + scale*c(i)
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
@@ -592,11 +604,13 @@ contains
 !$omp end workshare
 
                @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
                do i = 1, n
                   a(i) = a(i) + scale*b(i)
                end do
 !$omp end taskloop
+!$omp end single nowait
 
             end select
 
