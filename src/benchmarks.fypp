@@ -2,11 +2,23 @@
 
 ! Start timing fypp method
 #:def START_TIMING()
-   ! just to ensure we are aligned before the single
+   ! just to ensure we are aligned before the master
    !$omp barrier
-   !$omp single
+   ! We have experienced some problems with single.
+   ! Say if the CPU is comprising a varying amount of
+   ! efficiency vs. performance cores, then the timings
+   ! can sometimes get negative... :(
+   ! By enforcing a particular thread to do the timing
+   ! we should remove this problem *fingers crossed*
+   !$omp master
    call timing%start()
-   !$omp end single nowait
+   !$omp end master
+#:enddef
+#:def STOP_TIMING(var)
+   !$omp master
+   call timing%stop()
+   ${var}$ = timing%time
+   !$omp end master
 #:enddef
 
 ! Short for doing type-is AND start timing
@@ -58,7 +70,7 @@ module benchmarks_m
    integer, public, parameter :: METHOD_SUM = 5
    integer, public, parameter :: METHOD_AXPY = 6
    integer, public, parameter :: METHOD_FILL = 7
-   integer, public, parameter :: METHOD_FALSE_SHARING_TRIAD = 8
+   integer, public, parameter :: METHOD_TRIAD_FALSE_SHARING = 8
 
    #:for real in REALS
       public :: bench_add_${real}$
@@ -68,7 +80,7 @@ module benchmarks_m
       public :: bench_sum_${real}$
       public :: bench_axpy_${real}$
       public :: bench_fill_${real}$
-      public :: bench_false_sharing_triad_${real}$
+      public :: bench_triad_false_sharing_${real}$
    #:endfor
 
    public :: benchmark_method
@@ -83,20 +95,20 @@ module benchmarks_m
       end subroutine
    end interface
 
-   interface first_touch
-      #:for real in REALS
-         module procedure :: first_touch_${real}$
-      #:endfor
-   end interface
    interface array_allocate
       #:for real in REALS
          module procedure :: array_allocate_${real}$
       #:endfor
    end interface
 
-   interface single_touch
+   interface first_touch_serial
       #:for real in REALS
-         module procedure :: single_touch_${real}$
+         module procedure :: first_touch_serial_${real}$
+      #:endfor
+   end interface
+   interface first_touch_parallel
+      #:for real in REALS
+         module procedure :: first_touch_parallel_${real}$
       #:endfor
    end interface
 
@@ -131,7 +143,7 @@ contains
 
       end subroutine
 
-      subroutine first_touch_${real}$ (n, a)
+      subroutine first_touch_parallel_${real}$ (n, a)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
 
@@ -145,17 +157,18 @@ contains
 
       end subroutine
 
-      subroutine single_touch_${real}$ (n, a)
+      subroutine first_touch_serial_${real}$ (n, a)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
 
          integer(${OMB_INT_TYPE}$) :: i
 
-!$omp single
+!$omp master
          do i = 1, n
             a(i) = 1.0_${real}$
          end do
-!$omp end single
+!$omp end master
+!$omp barrier
 
       end subroutine
 
@@ -169,9 +182,9 @@ contains
          integer :: it
 
          if (options%first_touch) then
-            call first_touch(n, a)
+            call first_touch_parallel(n, a)
          else
-            call single_touch(n, a)
+            call first_touch_serial(n, a)
          end if
 
          do it = 1, options%warmup_it
@@ -231,14 +244,11 @@ contains
                   sum_a = sum_a + a(i)
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -293,14 +303,11 @@ contains
                   a(i) = fill
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -354,14 +361,11 @@ contains
                   a(i) = b(i)
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -418,14 +422,11 @@ contains
                   a(i) = scale*b(i)
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -481,14 +482,11 @@ contains
                   a(i) = b(i) + c(i)
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -546,14 +544,11 @@ contains
                   a(i) = b(i) + scale*c(i)
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -610,14 +605,11 @@ contains
                   a(i) = a(i) + scale*b(i)
                end do
 !$omp end taskloop
-!$omp end single nowait
+!$omp end single
 
             end select
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            @:STOP_TIMING(results%times(it))
 
          end do
 
@@ -629,7 +621,7 @@ contains
 
       end subroutine
 
-      subroutine bench_false_sharing_triad_${real}$ (n, options, results)
+      subroutine bench_triad_false_sharing_${real}$ (n, options, results)
          use omp_lib, only: omp_get_thread_num
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          type(options_t), intent(in):: options
@@ -680,10 +672,9 @@ contains
                a(id, i) = b(id, i) + scale*c(id, i)
             end do
 
-!$omp single
-            call timing%stop()
-            results%times(it) = timing%time
-!$omp end single
+            ! there is no implicit barrier above
+            !$omp barrier
+            @:STOP_TIMING(results%times(it))
 
          end do
 
