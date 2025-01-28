@@ -24,6 +24,9 @@ module options_m
       integer(${OMB_INT_TYPE}$) :: grainsize = 1
    end type
 
+   type, public, extends(option_kernel_t) :: option_kernel_teams_distribute_t
+   end type
+
    type, public :: options_t
 
       !< Number of iterations that are timed
@@ -36,6 +39,7 @@ module options_m
       integer :: offset = 0
       !< Number of threads maximal available. Mainly used for special benchmarks
       integer :: num_threads
+
       !< The kernel specification for the test runned.
       class(option_kernel_t), pointer :: kernel => null()
 

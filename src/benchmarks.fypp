@@ -246,6 +246,8 @@ contains
 !$omp end taskloop
 !$omp end single
 
+!$omp taskwait
+
             end select
 
             @:STOP_TIMING(results%times(it))
@@ -305,6 +307,8 @@ contains
 !$omp end taskloop
 !$omp end single
 
+!$omp taskwait
+
             end select
 
             @:STOP_TIMING(results%times(it))
@@ -362,6 +366,8 @@ contains
                end do
 !$omp end taskloop
 !$omp end single
+
+!$omp taskwait
 
             end select
 
@@ -424,6 +430,8 @@ contains
 !$omp end taskloop
 !$omp end single
 
+!$omp taskwait
+
             end select
 
             @:STOP_TIMING(results%times(it))
@@ -483,6 +491,8 @@ contains
                end do
 !$omp end taskloop
 !$omp end single
+
+!$omp taskwait
 
             end select
 
@@ -546,6 +556,8 @@ contains
 !$omp end taskloop
 !$omp end single
 
+!$omp taskwait
+
             end select
 
             @:STOP_TIMING(results%times(it))
@@ -607,6 +619,8 @@ contains
 !$omp end taskloop
 !$omp end single
 
+!$omp taskwait
+
             end select
 
             @:STOP_TIMING(results%times(it))
@@ -654,7 +668,7 @@ contains
 
 !$omp parallel private(it,i,id) shared(n,a,b,scale,options)
 
-         ! Direct call to omit interface constructs
+         ! Direct call to omit interface constructs which has different shape
          call init_array_${real}$ (options%num_threads*n, a, options)
          call init_array_${real}$ (options%num_threads*n, b, options)
          call init_array_${real}$ (options%num_threads*n, c, options)
@@ -674,6 +688,7 @@ contains
 
             ! there is no implicit barrier above
             !$omp barrier
+
             @:STOP_TIMING(results%times(it))
 
          end do

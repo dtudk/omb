@@ -669,12 +669,18 @@ contains
       character(len=*), parameter :: omp_fmt_t_i = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,i0))"
       character(len=*), parameter :: omp_fmt_t_ids = "('omp ','[',i0,']',tr1,a,t35,':',tr1,256(i0,:,','))"
       character(len=*), parameter :: omp_fmt_t_a = "('omp ','[',i0,']',tr1,a,t35,':',256(tr1,a))"
+      character(len=*), parameter :: omp_fmt_team_i = "('omp team','[',i0,',',i0,']',tr1,a,t35,':',256(tr1,i0))"
+      character(len=*), parameter :: omp_fmt_team_ids = "('omp team','[',i0,',',i0,']',tr1,a,t35,':',tr1,256(i0,:,','))"
+      character(len=*), parameter :: omp_fmt_team_a = "('omp team','[',i0,',',i0,']',tr1,a,t35,':',256(tr1,a))"
       character(len=2048) :: affinity_fmt, string
       integer :: i, n, chunk
-      integer :: thread, io_thread
+      integer :: threads, thread, io_thread
       integer :: proc_ids(2048)
       integer(OMP_SCHED_KIND) :: sched
       integer(OMP_PROC_BIND_KIND) :: proc_bind
+      #:if OMB_OMP_TEAMS > 0
+         integer :: teams, team, io_team
+      #:endif
 
       ! It is only defined outside of parallel regions
       ! Inside parallel regions, it is implementation specific
@@ -720,7 +726,6 @@ contains
       write (OUTPUT_UNIT, omp_fmt_i) "max_threads", omp_get_max_threads()
       write (OUTPUT_UNIT, omp_fmt_i) "num_threads", omp_get_num_threads()
       write (OUTPUT_UNIT, omp_fmt_i) "num_procs", omp_get_num_procs()
-      write (OUTPUT_UNIT, omp_fmt_i) "thread_limit", omp_get_thread_limit()
 
       call get_environment_variable("OMP_SCHEDULE", string, i)
       write (OUTPUT_UNIT, omp_fmt_a) "OMP_SCHEDULE", trim(adjustl(string))
@@ -790,11 +795,6 @@ contains
          write (OUTPUT_UNIT, omp_fmt_i) "device_num", omp_get_device_num()
       #:endif
 
-      #:if OMB_OMP_TEAMS > 0
-         write (OUTPUT_UNIT, omp_fmt_i) "num_teams", omp_get_num_teams()
-         write (OUTPUT_UNIT, omp_fmt_i) "team_num", omp_get_team_num()
-      #:endif
-
       write (OUTPUT_UNIT, omp_fmt_i) "num_places", omp_get_num_places()
       do i = 0, omp_get_num_places() - 1
 
@@ -840,6 +840,59 @@ contains
       end do
 
 !$omp end parallel
+
+      ! Try and figure out how the teams construct would handle this
+      #:if OMB_OMP_TEAMS > 0
+!$omp teams
+
+         ! Get number of teams
+         teams = omp_get_num_teams()
+
+         team = omp_get_team_num()
+         if (team == 0) then
+            ! Presumably there is no synchronization in a teams
+            write (OUTPUT_UNIT, omp_fmt_i) "num_teams", teams
+         end if
+
+!$omp parallel default(private) shared(teams,team)
+
+         ! See how many threads we have in this team...
+         threads = omp_get_num_threads()
+         thread = omp_get_thread_num()
+
+         do io_thread = 0, threads - 1
+            if (io_thread == thread) then
+
+               if (io_thread == 0) then
+                  write (OUTPUT_UNIT, omp_fmt_team_i) team, thread, "num_threads", threads
+               end if
+
+               i = omp_capture_affinity(string, "%i | %P")
+               write (OUTPUT_UNIT, omp_fmt_team_a) team, thread, "thread_id | process_id", trim(adjustl(string))
+
+               #:if OMB_OMP_PARTITION > 0
+                  n = omp_get_partition_num_places()
+                  write (OUTPUT_UNIT, omp_fmt_team_i) team, thread, "partition_num_places", n
+
+                  call omp_get_partition_place_nums(proc_ids)
+                  write (OUTPUT_UNIT, omp_fmt_team_ids) team, thread, "partition_place_nums", proc_ids(1:n)
+               #:endif
+
+               i = omp_get_place_num()
+               n = omp_get_place_num_procs(i)
+               write (OUTPUT_UNIT, omp_fmt_team_i) team, thread, "place_num_procs", n
+               call omp_get_place_proc_ids(i, proc_ids)
+               write (OUTPUT_UNIT, omp_fmt_team_ids) team, thread, "place_proc_ids", proc_ids(1:n)
+
+            end if
+!$omp barrier
+            flush OUTPUT_UNIT
+         end do
+
+!$omp end parallel
+
+!$omp end teams
+      #:endif
 
    end subroutine
 
