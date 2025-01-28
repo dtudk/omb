@@ -1,24 +1,35 @@
 #:include "common.fypp"
 
 ! Start timing fypp method
-#:def START_TIMING()
-   ! just to ensure we are aligned before the master
-   !$omp barrier
+#:def START_TIMING(in_teams=0)
    ! We have experienced some problems with single.
    ! Say if the CPU is comprising a varying amount of
    ! efficiency vs. performance cores, then the timings
    ! can sometimes get negative... :(
    ! By enforcing a particular thread to do the timing
    ! we should remove this problem *fingers crossed*
-   !$omp master
-   call timing%start()
-   !$omp end master
+   #:if in_teams == 0
+      ! just to ensure we are aligned before the master
+      !$omp barrier
+      !$omp master
+      call timing%start()
+      !$omp end master
+   #:else
+      if (team == 0) then
+         call timing%start()
+      end if
+   #:endif
 #:enddef
-#:def STOP_TIMING(var)
-   !$omp master
-   call timing%stop()
-   ${var}$ = timing%time
-   !$omp end master
+#:def STOP_TIMING(var, in_teams=0)
+   #:if in_teams == 0
+      !$omp master
+      call timing%stop()
+      ${var}$ = timing%time
+      !$omp end master
+   #:else
+      call timing%stop()
+      ${var}$ = timing%time
+   #:endif
 #:enddef
 
 ! Short for doing type-is AND start timing
@@ -54,6 +65,8 @@ module benchmarks_m
    ! Define the different methods for benchmarks
    use iso_fortran_env, only: real32, real64, real128
    use iso_fortran_env, only: ${OMB_INT_TYPE}$
+
+   use omp_lib, only: omp_get_team_num
 
    use options_m
    use results_m, only: results_t
@@ -132,6 +145,7 @@ contains
          #:endif
          type(options_t), intent(in) :: options
 
+!$omp master
          #:if ARRAY_IS_POINTER
             nullify (a)
          #:endif
@@ -140,6 +154,7 @@ contains
             ! Allocate etc.
             allocate (a(n + options%offset))
          #:endif
+!$omp end master
 
       end subroutine
 
@@ -151,7 +166,7 @@ contains
 
 !$omp do private(i) schedule(runtime)
          do i = 1, n
-            a(i) = 1.0_${real}$
+            a(i) = 0.5_${real}$
          end do
 !$omp end do
 
@@ -165,7 +180,7 @@ contains
 
 !$omp master
          do i = 1, n
-            a(i) = 1.0_${real}$
+            a(i) = 0.5_${real}$
          end do
 !$omp end master
 !$omp barrier
@@ -209,54 +224,118 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          real(${real}$) :: sum_a
          @:ARRAY_DEFINE(${real}$, n + options%offset, a)
 
+!$omp parallel shared(n,a,options)
          call array_allocate(n, a, options)
-
-!$omp parallel private(it,i) shared(n,a,sum_a)
-
          call init_array(n, a, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,options,results) &
+!$omp&  reduction(+:sum_a) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime) reduction(+:sum_a)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   sum_a = sum_a + a(i)
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,options,results) &
+!$omp&  reduction(+:sum_a) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a)
+               do i = 1, n
+                  sum_a = sum_a + a(i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it,i) shared(n,a,sum_a,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime) reduction(+:sum_a)
+                  do i = 1, n
+                     sum_a = sum_a + a(i)
+                  end do
 !$omp end do
 
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               sum_a = sum(a)
+                  sum_a = sum(a)
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize) reduction(+:sum_a)
-               do i = 1, n
-                  sum_a = sum_a + a(i)
-               end do
+                  do i = 1, n
+                     sum_a = sum_a + a(i)
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i) reduction(+:sum_a)
+                  do i = 1, n
+                     sum_a = sum_a + a(i)
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(1, n, 1, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a)
 
@@ -268,56 +347,118 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          real(${real}$) :: fill
          @:ARRAY_DEFINE(${real}$, n + options%offset, a)
 
-         call array_allocate(n, a, options)
-
          fill = 2._${real}$
 
-!$omp parallel private(it,i) shared(n,a,fill)
-
+!$omp parallel shared(n,a,options)
+         call array_allocate(n, a, options)
          call init_array(n, a, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,fill,options,results) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   a(i) = fill
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,fill,options,results) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a,fill)
+               do i = 1, n
+                  a(i) = fill
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it,i) shared(n,a,fill,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+                  do i = 1, n
+                     a(i) = fill
+                  end do
 !$omp end do
 
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(:) = fill
+                  a(:) = fill
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
-               do i = 1, n
-                  a(i) = fill
-               end do
+                  do i = 1, n
+                     a(i) = fill
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = fill
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(1, n, 0, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a)
 
@@ -329,55 +470,117 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
+!$omp parallel shared(n,a,b,options)
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
-
-!$omp parallel private(it,i) shared(n,a,b)
-
          call init_array(n, a, options)
          call init_array(n, b, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,b,options,results) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   a(i) = b(i)
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,b,options,results) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a,b)
+               do i = 1, n
+                  a(i) = b(i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it,i) shared(n,a,b,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+                  do i = 1, n
+                     a(i) = b(i)
+                  end do
 !$omp end do
 
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(:) = b(:)
+                  a(:) = b(:)
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
-               do i = 1, n
-                  a(i) = b(i)
-               end do
+                  do i = 1, n
+                     a(i) = b(i)
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = b(i)
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(2, n, 0, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a, b)
 
@@ -389,58 +592,120 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          real(${real}$) :: scale
          @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
-         call array_allocate(n, a, options)
-         call array_allocate(n, b, options)
-
          scale = 2._${real}$
 
-!$omp parallel private(it,i) shared(n,a,b,scale)
-
+!$omp parallel shared(n,a,b,options)
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
          call init_array(n, a, options)
          call init_array(n, b, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,b,scale,options,results) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   a(i) = scale*b(i)
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,b,scale,options,results) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a,b,scale)
+               do i = 1, n
+                  a(i) = scale*b(i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it,i) shared(n,a,b,scale,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+                  do i = 1, n
+                     a(i) = scale*b(i)
+                  end do
 !$omp end do
 
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(:) = scale*b(:)
+                  a(:) = scale*b(:)
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
-               do i = 1, n
-                  a(i) = scale*b(i)
-               end do
+                  do i = 1, n
+                     a(i) = scale*b(i)
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = scale*b(i)
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(2, n, 1, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a, b)
 
@@ -452,57 +717,119 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          @:ARRAY_DEFINE(${real}$, n + options%offset, a, b, c)
 
+!$omp parallel shared(n,a,b,c,options)
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
          call array_allocate(n, c, options)
-
-!$omp parallel private(it,i) shared(n,a,b,c)
-
          call init_array(n, a, options)
          call init_array(n, b, options)
          call init_array(n, c, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,b,c,options,results) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   a(i) = b(i) + c(i)
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,b,c,options,results) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a,b,c)
+               do i = 1, n
+                  a(i) = b(i) + c(i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it,i) shared(n,a,b,c,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+                  do i = 1, n
+                     a(i) = b(i) + c(i)
+                  end do
 !$omp end do
 
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(i) = b(i) + c(i)
+                  a(i) = b(i) + c(i)
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
-               do i = 1, n
-                  a(i) = b(i) + c(i)
-               end do
+                  do i = 1, n
+                     a(i) = b(i) + c(i)
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = b(i) + c(i)
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(3, n, 1, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a, b, c)
 
@@ -514,59 +841,121 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_TYPE}$) :: i
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          real(${real}$) :: scale
          @:ARRAY_DEFINE(${real}$, n + options%offset, a, b, c)
 
+         scale = 2._${real}$
+
+!$omp parallel shared(n,a,b,c,options)
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
          call array_allocate(n, c, options)
-
-         scale = 2._${real}$
-
-!$omp parallel private(it,i) shared(n,a,b,c,scale)
-
          call init_array(n, a, options)
          call init_array(n, b, options)
          call init_array(n, c, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,b,c,scale,options,results) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   a(i) = b(i) + scale*c(i)
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,b,c,scale,options,results) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a,b,c,scale)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it,i) shared(n,a,b,c,scale,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+                  do i = 1, n
+                     a(i) = b(i) + scale*c(i)
+                  end do
 !$omp end do
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(:) = b(:) + scale*c(:)
+                  a(:) = b(:) + scale*c(:)
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
-               do i = 1, n
-                  a(i) = b(i) + scale*c(i)
-               end do
+                  do i = 1, n
+                     a(i) = b(i) + scale*c(i)
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = b(i) + scale*c(i)
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(3, n, 2, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a, b, c)
 
@@ -577,59 +966,121 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer :: it
+         integer :: it, team
          type(timing_t) :: timing
 
          integer(${OMB_INT_TYPE}$) :: i
          real(${real}$) :: scale
          @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
-         call array_allocate(n, a, options)
-         call array_allocate(n, b, options)
-
          scale = 2._${real}$
 
-!$omp parallel private(it) shared(n,a,b,scale)
-
+!$omp parallel shared(n,a,b,options)
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
          call init_array(n, a, options)
          call init_array(n, b, options)
+!$omp end parallel
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            select type (kernel => options%kernel)
+         type is (option_kernel_teams_distribute_t)
+!$omp teams private(it,i,team) shared(n,a,b,scale,options,results) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-               @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute private(i)
                do i = 1, n
                   a(i) = a(i) + scale*b(i)
                end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams private(it,i,team) shared(n,a,b,scale,options,results) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel private(i) shared(n,a,b,scale)
+               do i = 1, n
+                  a(i) = a(i) + scale*b(i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel private(it) shared(n,a,b,scale,options,results)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do private(i) schedule(runtime)
+                  do i = 1, n
+                     a(i) = a(i) + scale*b(i)
+                  end do
 !$omp end do
 
-               @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-               a(:) = a(:) + scale*b(:)
+                  a(:) = a(:) + scale*b(:)
 !$omp end workshare
 
-               @:TYPE_IS(option_kernel_taskloop_t)
+                  @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) grainsize(kernel%grainsize)
-               do i = 1, n
-                  a(i) = a(i) + scale*b(i)
-               end do
+                  do i = 1, n
+                     a(i) = a(i) + scale*b(i)
+                  end do
 !$omp end taskloop
 !$omp end single
 
 !$omp taskwait
 
-            end select
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = a(i) + scale*b(i)
+                  end do
+!$omp end loop
 
-            @:STOP_TIMING(results%times(it))
+               end select
 
-         end do
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
 
+         end select
+
          call results%update(2, n, 2, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a, b)
 
@@ -666,7 +1117,7 @@ contains
 
          scale = 2._${real}$
 
-!$omp parallel private(it,i,id) shared(n,a,b,scale,options)
+!$omp parallel private(it,i,id) shared(n,a,b,scale,options,results)
 
          ! Direct call to omit interface constructs which has different shape
          call init_array_${real}$ (options%num_threads*n, a, options)
@@ -696,6 +1147,10 @@ contains
 !$omp end parallel
 
          call results%update(3, options%num_threads*n, 2, storage_size(1.0_${real}$))
+
+         if (options%debug) then
+            print *, sum(a)
+         end if
 
          @:ARRAY_DEALLOC(a, b, c)
 

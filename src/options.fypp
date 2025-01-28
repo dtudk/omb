@@ -24,7 +24,15 @@ module options_m
       integer(${OMB_INT_TYPE}$) :: grainsize = 1
    end type
 
+   type, public, extends(option_kernel_t) :: option_kernel_loop_t
+   end type
+
+   !< Distribute the threads in distribute via the teams construct.
    type, public, extends(option_kernel_t) :: option_kernel_teams_distribute_t
+   end type
+
+   !< Distribute the threads in parallel via the teams construct.
+   type, public, extends(option_kernel_t) :: option_kernel_teams_parallel_t
    end type
 
    type, public :: options_t
@@ -38,7 +46,10 @@ module options_m
       !< Offset in allocation, just to ensure non-contiguity of array-allocations
       integer :: offset = 0
       !< Number of threads maximal available. Mainly used for special benchmarks
-      integer :: num_threads
+      integer :: num_threads = 1
+
+      !< Whether we should print-out debug info
+      logical :: debug = .false.
 
       !< The kernel specification for the test runned.
       class(option_kernel_t), pointer :: kernel => null()

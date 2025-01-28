@@ -110,6 +110,11 @@ contains
       real(real64) :: std, avg
       integer :: i
       avg = this%time_avg()
+      if (size(this%times, 1) == 0) then
+         std = 0._real64
+         return
+      end if
+
       ! Calculate std.
       std = 0._real64
       do i = 1, size(this%times, 1)

@@ -61,7 +61,6 @@ program main
    type(options_t) :: options
    type(results_t) :: results
 
-   logical :: debug = .false.
    logical :: info_env = .false.
    logical :: dryrun = .false.
 
@@ -101,7 +100,7 @@ program main
 
          select case (arg)
          case ("-debug", "--debug")
-            debug = .true.
+            options%debug = .true.
 
          case ("-env", "--env")
             info_env = .true.
@@ -138,6 +137,12 @@ program main
                allocate (option_kernel_workshare_t::options%kernel)
             case ("taskloop")
                allocate (option_kernel_taskloop_t::options%kernel)
+            case ("loop")
+               allocate (option_kernel_loop_t::options%kernel)
+            case ("teams:distribute")
+               allocate (option_kernel_teams_distribute_t::options%kernel)
+            case ("teams:parallel")
+               allocate (option_kernel_teams_parallel_t::options%kernel)
             end select
 
             select type (kernel => options%kernel)
@@ -280,7 +285,7 @@ program main
             do istr_size = 1, size(STR_SIZES)
                idx = index(trim(arg), trim(STR_SIZES(istr_size)))
                if (idx > 0) then
-                  if (debug) then
+                  if (options%debug) then
                      write (OUTPUT_UNIT, *) "Converting", trim(arg)
                      write (OUTPUT_UNIT, *) "To unit = ", trim(STR_SIZES(istr_size))
                   end if
@@ -359,7 +364,7 @@ program main
 
    #:if defined('OMB_MPI')
       if (rank_mpi > 0) then
-         debug = .false.
+         options%debug = .false.
       end if
    #:endif
 
@@ -389,7 +394,7 @@ program main
    end if
    elem_bytes = elem_bits/8
 
-   if (debug) then
+   if (options%debug) then
       write (OUTPUT_UNIT, debug_fmt_i) "target_bytes [B]", nint(bytes, int64)
    end if
 
@@ -497,7 +502,7 @@ program main
    ! big_n == total number of elements *per array*
    ! n == elements along the distributed array dimension (<= big_n)
 
-   if (debug) then
+   if (options%debug) then
       write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
       write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
       write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bits*narrays/(8*1024**2)
@@ -515,6 +520,12 @@ program main
       type is (option_kernel_taskloop_t)
          write (OUTPUT_UNIT, "(a)") "taskloop"
          write (OUTPUT_UNIT, debug_fmt_i) "taskloop_grainsize", kernel%grainsize
+      type is (option_kernel_loop_t)
+         write (OUTPUT_UNIT, "(a)") "loop"
+      type is (option_kernel_teams_distribute_t)
+         write (OUTPUT_UNIT, "(a)") "teams:distribute"
+      type is (option_kernel_teams_parallel_t)
+         write (OUTPUT_UNIT, "(a)") "teams:parallel"
       end select
       ! Important to use big_n
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
@@ -533,6 +544,12 @@ program main
    end if
 
    if (.not. dryrun) then ! only run in this case
+
+      if (options%debug) then
+         ! Ensure that the debug output is consistent
+         ! i.e. only 1 run for all methods!
+         options%it = 1
+      end if
 
       ! Allocate the timings
       call results%allocate(options%it)
@@ -560,6 +577,12 @@ program main
             write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
          type is (option_kernel_taskloop_t)
             write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
+         type is (option_kernel_loop_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "loop"
+         type is (option_kernel_teams_distribute_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "teams:distribute"
+         type is (option_kernel_teams_parallel_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "teams:parallel"
          class default
             write (ERROR_UNIT, *) "Unknown kernel specification"
             stop 5
@@ -965,6 +988,9 @@ contains
       write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - taskloop[,grainsize] -> use parallel taskloop clause"
       write (OUTPUT_UNIT, fmt_oa) "   default grainsize lets each thread get ~10 tasks."
+      write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:parallel -> abuse the teams parallel workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - loop -> abuse the loop workshare clause"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
