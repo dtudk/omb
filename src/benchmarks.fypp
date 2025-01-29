@@ -170,7 +170,7 @@ contains
 
 !$omp do private(i) schedule(runtime)
          do i = 1, n
-            a(i) = 0.5_${real}$
+            a(i) = v
          end do
 !$omp end do
 
@@ -241,6 +241,10 @@ contains
          call init_array(n, a, 0.5_${real}$, options)
 !$omp end parallel
 
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
+
          select type (kernel => options%kernel)
 
          type is (option_kernel_serial_t)
@@ -289,11 +293,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a)
+!$omp parallel do schedule(runtime) private(i) shared(n,a)
                do i = 1, n
                   sum_a = sum_a + a(i)
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -356,7 +360,7 @@ contains
          call results%update(1, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*0.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -381,6 +385,10 @@ contains
          call array_allocate(n, a, options)
          call init_array(n, a, 0.5_${real}$, options)
 !$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
 
          select type (kernel => options%kernel)
 
@@ -427,11 +435,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a,fill)
+!$omp parallel do schedule(runtime) private(i) shared(n,a,fill)
                do i = 1, n
                   a(i) = fill
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -494,7 +502,7 @@ contains
          call results%update(1, n, 0, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*fill
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -518,6 +526,10 @@ contains
          call init_array(n, a, 0.5_${real}$, options)
          call init_array(n, b, 1.5_${real}$, options)
 !$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
 
          select type (kernel => options%kernel)
 
@@ -564,11 +576,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a,b)
+!$omp parallel do schedule(runtime) private(i) shared(n,a,b)
                do i = 1, n
                   a(i) = b(i)
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -631,7 +643,7 @@ contains
          call results%update(2, n, 0, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*1.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -658,6 +670,10 @@ contains
          call init_array(n, a, 0.5_${real}$, options)
          call init_array(n, b, 1.5_${real}$, options)
 !$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
 
          select type (kernel => options%kernel)
 
@@ -704,11 +720,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a,b,scale)
+!$omp parallel do schedule(runtime) private(i) shared(n,a,b,scale)
                do i = 1, n
                   a(i) = scale*b(i)
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -771,7 +787,7 @@ contains
          call results%update(2, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*scale*1.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -797,6 +813,10 @@ contains
          call init_array(n, b, 1.5_${real}$, options)
          call init_array(n, c, 2.5_${real}$, options)
 !$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
 
          select type (kernel => options%kernel)
 
@@ -843,11 +863,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a,b,c)
+!$omp parallel do schedule(runtime) private(i) shared(n,a,b,c)
                do i = 1, n
                   a(i) = b(i) + c(i)
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -872,7 +892,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(i) = b(i) + c(i)
+                  a(:) = b(:) + c(:)
 !$omp end workshare
 
                   @:TYPE_IS(option_kernel_taskloop_t)
@@ -910,7 +930,7 @@ contains
          call results%update(3, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*(1.5_${real}$+2.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -939,6 +959,10 @@ contains
          call init_array(n, b, 1.5_${real}$, options)
          call init_array(n, c, 2.5_${real}$, options)
 !$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
 
          select type (kernel => options%kernel)
 
@@ -985,11 +1009,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a,b,c,scale)
+!$omp parallel do schedule(runtime) private(i) shared(n,a,b,c,scale)
                do i = 1, n
                   a(i) = b(i) + scale*c(i)
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -1051,7 +1075,7 @@ contains
          call results%update(3, n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*(1.5_${real}$+scale*2.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -1078,6 +1102,10 @@ contains
          call init_array(n, a, 0.5_${real}$, options)
          call init_array(n, b, 1.5_${real}$, options)
 !$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
 
          select type (kernel => options%kernel)
 
@@ -1124,11 +1152,11 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp parallel private(i) shared(n,a,b,scale)
+!$omp parallel do schedule(runtime) private(i) shared(n,a,b,scale)
                do i = 1, n
                   a(i) = a(i) + scale*b(i)
                end do
-!$omp end parallel
+!$omp end parallel do
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -1191,7 +1219,7 @@ contains
          call results%update(2, n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*(0.5_${real}$+scale*1.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -1261,7 +1289,7 @@ contains
          call results%update(3, options%num_threads*n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a)
+            write (*, test_fmt) sum(a) - n*(1.5_${real}$+scale*2.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)

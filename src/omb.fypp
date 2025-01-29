@@ -802,7 +802,8 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "debug", "print-out additional debug information"
-      write (OUTPUT_UNIT, fmt_opt_a) "test", "print-out a sum of the a variable. Used for correctness checking."
+      write (OUTPUT_UNIT, fmt_opt_a) "test", "print-out testing variables to assert method runs correctly."
+      write (OUTPUT_UNIT, fmt_oa) "Should output a '0 0' for all method+kernels. Please bug-report if this is not the case."
 
       write (OUTPUT_UNIT, fmt_opt_a) "env", "print-out OpenMP environment understanding"
       write (OUTPUT_UNIT, fmt_oa) "Will print a lot of information related to how"
