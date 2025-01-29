@@ -14,27 +14,42 @@ module options_m
    type, public :: option_kernel_t
    end type
 
+   !< Use no OpenMP clauses.
    type, public, extends(option_kernel_t) :: option_kernel_serial_t
    end type
 
+   !< Use the parallel do construct.
    type, public, extends(option_kernel_t) :: option_kernel_do_t
    end type
 
+   !< Use the parallel workshare construct.
    type, public, extends(option_kernel_t) :: option_kernel_workshare_t
    end type
 
+   !< Use the parallel taskloop construct.
    type, public, extends(option_kernel_t) :: option_kernel_taskloop_t
       integer(${OMB_INT_TYPE}$) :: grainsize = 1
    end type
 
+   !< Use the parallel loop construct.
    type, public, extends(option_kernel_t) :: option_kernel_loop_t
    end type
 
-   !< Distribute the threads in distribute via the teams construct.
+   !< Use the teams distribute construct.
+   !<
+   !< This uses the distribute to utilize only the master threads
+   !< of each team to perform the computation.
+   !< So the thread_limit is hardcoded to 1, and the num_teams is specified
+   !< to be `num_threads`.
+   !< Kind of abusing the teams + distribute constructs.
    type, public, extends(option_kernel_t) :: option_kernel_teams_distribute_t
    end type
 
-   !< Distribute the threads in parallel via the teams construct.
+   !< Use the teams parallel do construct.
+   !<
+   !< This uses the teams (force-fully sets num_team=1) and then uses
+   !< the threads to a worksharing clause using `parallel do`.
+   !< Kind of abusing the teams construct.
    type, public, extends(option_kernel_t) :: option_kernel_teams_parallel_t
    end type
 
