@@ -22,6 +22,7 @@ program main
    use timing_m, only: timing_get_sys_max
    use options_m
    use results_m, only: results_t
+   use info_omp_m, only: info_env_t
    use benchmarks_m ! ALL
 
    implicit none
@@ -61,7 +62,7 @@ program main
    type(options_t) :: options
    type(results_t) :: results
 
-   logical :: info_env = .false.
+   type(info_env_t) :: info_env
    logical :: dryrun = .false.
 
    logical :: option_set_it = .false.
@@ -106,7 +107,12 @@ program main
             options%test = .true.
 
          case ("-env", "--env")
-            info_env = .true.
+            info_env%show = .true.
+
+         case ("-env-teams", "--env-teams")
+            ! Also show teams information
+            ! Default to not show it since it gets quite verbose!
+            info_env%teams = .true.
 
          case ("-kernel", "--kernel")
 
@@ -544,7 +550,7 @@ program main
    end if
 
    ! OpenMP information
-   if (info_env) then
+   if (info_env%show) then
       #:if defined('OMB_MPI')
          call show_info_mpi()
       #:else
@@ -576,7 +582,7 @@ program main
 
       #:endif
 
-      if (rank_mpi == 0 .and. .not. (info_env .or. options%test)) then
+      if (rank_mpi == 0 .and. .not. (info_env%show .or. options%test)) then
 
          write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
          select type (kernel => options%kernel)
@@ -697,7 +703,7 @@ contains
 
       call print_info_sys()
 
-      call print_info_omp()
+      call print_info_omp(info_env)
 
       write (OUTPUT_UNIT, *) ! newline
 

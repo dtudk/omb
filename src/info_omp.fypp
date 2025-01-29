@@ -13,11 +13,22 @@ module info_omp_m
 
    public :: print_info_sys
    public :: print_info_omp
+   public :: info_env_t
 
    ! This integer is used to size certain arrays used for internal data-output.
    ! For very large CPU's (or GPU's) this might be too small, simply increase
    ! it.
    integer, parameter :: MAX_THREADS = 4096
+
+   type info_env_t
+
+      !< Whether or not to show things!
+      logical :: show = .false.
+
+      !< Show teams information
+      logical :: teams = .false.
+
+   end type
 
    ! If you ever have more places than 256 (threads etc.)
    ! then bump up the values below
@@ -52,7 +63,9 @@ contains
 
    end subroutine
 
-   subroutine print_info_omp()
+   subroutine print_info_omp(info_env)
+      type(info_env_t), intent(in) :: info_env
+
       character(len=2048) :: affinity_fmt, string
       integer :: n, i
       integer :: thread, io_thread
@@ -217,13 +230,16 @@ contains
 
       flush OUTPUT_UNIT
 
-      #:if OMB_OMP_TEAMS > 0
+      if (info_env%teams) then
+         #:if OMB_OMP_TEAMS > 0
 !$omp teams
 
-         call info_print_omp_teams()
+            call info_print_omp_teams()
 
 !$omp end teams
-      #:endif
+         #:endif
+
+      end if
 
    end subroutine
 
