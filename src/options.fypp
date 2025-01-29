@@ -22,13 +22,17 @@ module options_m
    type, public, extends(option_kernel_t) :: option_kernel_do_t
    end type
 
+   !< Use the parallel do simd construct.
+   type, public, extends(option_kernel_t) :: option_kernel_do_simd_t
+   end type
+
    !< Use the parallel workshare construct.
    type, public, extends(option_kernel_t) :: option_kernel_workshare_t
    end type
 
    !< Use the parallel taskloop construct.
    type, public, extends(option_kernel_t) :: option_kernel_taskloop_t
-      integer(${OMB_INT_TYPE}$) :: grainsize = 1
+      integer(${OMB_INT_KIND}$) :: grainsize = 1
    end type
 
    !< Use the parallel loop construct.

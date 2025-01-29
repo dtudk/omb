@@ -47,13 +47,13 @@ include(cmake/ombOpenMPOptions.cmake)
 
 
 # Now figure out how the tools should be used.
-set(OMB_INT_TYPE "int64" CACHE STRING "Size of integers used in loop constructs (type
+set(OMB_INT_KIND "int64" CACHE STRING "Size of integers used in loop constructs (type
 named according to iso_fortran_env).")
-set_property(CACHE OMB_INT_TYPE
+set_property(CACHE OMB_INT_KIND
   PROPERTY STRINGS int32 int64)
 
 # Append choice to fypp flags
-list(APPEND OMB_FYPP_FLAGS -DOMB_INT_TYPE="'${OMB_INT_TYPE}'")
+list(APPEND OMB_FYPP_FLAGS -DOMB_INT_KIND="'${OMB_INT_KIND}'")
 
 # Determine whether arrays should be allocated, or stack-bound
 set(OMB_ALLOC_TYPE "stack" CACHE STRING "How the arrays are constructed

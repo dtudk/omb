@@ -6,6 +6,7 @@ module info_omp_m
    use omp_lib
    use iso_fortran_env, only: OUTPUT_UNIT, ERROR_UNIT
    use iso_fortran_env, only: real64
+   use iso_fortran_env, only: int32, int64
 
    implicit none
 
@@ -32,7 +33,10 @@ module info_omp_m
 
    ! If you ever have more places than 256 (threads etc.)
    ! then bump up the values below
+   character(len=*), parameter :: FMT_OMB_I = "('omb ',a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_OMB_A = "('omb ',a,t40,':',tr1,a)"
    character(len=*), parameter :: FMT_SYS_I = "('sys ',a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_SYS_A = "('sys ',a,t40,':',tr1,a)"
    character(len=*), parameter :: FMT_I = "('omp ',a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_DA = "('omp ',a,t40,':',tr1,f0.10,tr1,a)"
    character(len=*), parameter :: FMT_T_DA = "('omp ','[',i0,']',tr1,a,t40,':',tr1,f0.10,tr1,a)"
@@ -57,6 +61,9 @@ contains
 
       use timing_m, only: timing_get_sys_rate
       use timing_m, only: timing_get_sys_max
+
+      write (OUTPUT_UNIT, FMT_OMB_A) "alloc_type", "${OMB_ALLOC_TYPE}$"
+      write (OUTPUT_UNIT, FMT_OMB_I) "int_kind", ${OMB_INT_KIND}$
 
       ! Generic system information
       write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_rate", timing_get_sys_rate()
@@ -91,6 +98,11 @@ contains
             ! The specification explicitly says that
             ! each thread can have its own tick value.
             wtick = omp_get_wtick()
+            ! Since a thread can be placed different places, we here
+            ! print the placement of the thread which, if un-bound, can
+            ! be -1.
+            ! If one wishes to know for all core-places, do something like:
+            !   OMP_NUM_THREADS=#cores OMP_PLACES=cores(#cores)
             i = omp_get_place_num()
             if (wtick < 1e-9_real64) then
                write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e12, "ps"

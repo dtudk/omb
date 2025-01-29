@@ -49,7 +49,7 @@ program main
    character(len=64) :: method_str
    integer :: elem_bits, elem_bytes
    integer(int64) :: big_n
-   integer(${OMB_INT_TYPE}$) :: n, n_dim2
+   integer(${OMB_INT_KIND}$) :: n, n_dim2
    integer :: grainsize = 0
 
    ! We need to at least have each array size on the order of 4 times the cache size
@@ -144,6 +144,8 @@ program main
                allocate (option_kernel_serial_t::options%kernel)
             case ("do")
                allocate (option_kernel_do_t::options%kernel)
+            case ("do:simd")
+               allocate (option_kernel_do_simd_t::options%kernel)
             case ("workshare")
                allocate (option_kernel_workshare_t::options%kernel)
             case ("taskloop")
@@ -415,7 +417,7 @@ program main
    big_n = nint(bytes*8/(elem_bits*narrays), int64)
    if (big_n > huge(n)) then
       write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64."
-      write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_TYPE=int64 (the default)."
+      write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_KIND=int64 (the default)."
       stop 20
    end if
    n = big_n
@@ -530,6 +532,8 @@ program main
          write (OUTPUT_UNIT, "(a)") "serial"
       type is (option_kernel_do_t)
          write (OUTPUT_UNIT, "(a)") "do"
+      type is (option_kernel_do_simd_t)
+         write (OUTPUT_UNIT, "(a)") "do:simd"
       type is (option_kernel_workshare_t)
          write (OUTPUT_UNIT, "(a)") "workshare"
       type is (option_kernel_taskloop_t)
@@ -590,6 +594,8 @@ program main
             write (OUTPUT_UNIT, "(tr1,a)", advance="no") "serial"
          type is (option_kernel_do_t)
             write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
+         type is (option_kernel_do_simd_t)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do:simd"
          type is (option_kernel_workshare_t)
             write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
          type is (option_kernel_taskloop_t)
@@ -750,7 +756,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, '(2a)') "OpenMP benchmark program: ", trim(arg)
       write (OUTPUT_UNIT, fmt_nl)
-      write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program with more option."
+      write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program with more options."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, '(a)') "Methods:"
@@ -775,7 +781,9 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
       write (OUTPUT_UNIT, fmt_oa) " - do -> use parallel do clause [default]"
+      write (OUTPUT_UNIT, fmt_oa) " - do:simd -> use parallel do simd clause"
       write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) "    lhs-realloc is explicitly prohibited by a(:) = ..."
       write (OUTPUT_UNIT, fmt_oa) " - taskloop[,grainsize] -> use parallel taskloop clause"
       write (OUTPUT_UNIT, fmt_oa) "   default grainsize lets each thread get ~10 tasks."
       write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
@@ -809,11 +817,12 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "debug", "print-out additional debug information"
       write (OUTPUT_UNIT, fmt_opt_a) "test", "print-out testing variables to assert method runs correctly."
-      write (OUTPUT_UNIT, fmt_oa) "Should output a '0 0' for all method+kernels. Please bug-report if this is not the case."
+      write (OUTPUT_UNIT, fmt_oa) "Should output '0 0' for all method+kernels. Please bug-report if this is not the case."
 
       write (OUTPUT_UNIT, fmt_opt_a) "env", "print-out OpenMP environment understanding"
       write (OUTPUT_UNIT, fmt_oa) "Will print a lot of information related to how"
       write (OUTPUT_UNIT, fmt_oa) "OpenMP can place its threads."
+      write (OUTPUT_UNIT, fmt_opt_a) "env-teams", "also print-out information for each team"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_nl)
