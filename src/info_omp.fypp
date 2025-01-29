@@ -168,6 +168,8 @@ contains
 
       end block
 
+      flush OUTPUT_UNIT
+
 !$omp parallel default(private)
 
 !$omp single
@@ -184,9 +186,9 @@ contains
 
       call print_info_omp_devices()
 
-!$omp end single
-
       flush OUTPUT_UNIT
+
+!$omp end single
 
       ! Print out stuff inside a parallel region
 
@@ -207,6 +209,8 @@ contains
       end do
 
 !$omp end parallel
+
+      flush OUTPUT_UNIT
 
       #:if OMB_OMP_TEAMS > 0
 !$omp teams
