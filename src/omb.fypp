@@ -258,7 +258,7 @@ program main
 
             read (arg, *) options%warmup_it
 
-         case ("-it", "--it", "--itt", "-itt") ! last two are legacy options
+         case ("-it", "--it")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, --it has no argument"
@@ -327,7 +327,7 @@ program main
 
             dryrun = .true.
 
-         case ("help", "--help", "-help", "-h")
+         case ("help", "--help", "-help", "-h", "--h")
 
             call print_help()
 

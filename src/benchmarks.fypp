@@ -247,6 +247,7 @@ contains
 
             do it = 1, options%it
                call timing%start()
+               sum_a = 0._${real}$
                do i = 1, n
                   sum_a = sum_a + a(i)
                end do
