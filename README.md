@@ -1,5 +1,5 @@
 
- omb
+# `omb`
 
 The OpenMP benchmark suite.
 
@@ -20,10 +20,10 @@ Installing this small utility requires:
 
 - A FORTRAN compiler, currently auto-detecting GNU or Intel
   - if support is needed for other compilers, please
-    upon up an issue.
+    open an issue.
 - A functional OpenMP implementation (>=4.5).
   - if support is needed for older OpenMP implementations, please
-    upon up an issue.
+    open an issue.
 
 That's it!
 
@@ -56,17 +56,11 @@ formats.
   in a single subroutine. Hence, the influence of the array
   declarations can impact performance.
 
-  - `stack`:
+  - `stack`: `real :: a(N)`
 
-    `real :: a(N)`
+  - `allocatable`: `real, allocatable :: a(:) ; allocate(a(N))`
 
-  - `allocatable`:
-
-    `real, allocatable :: a(:) ; allocate(a(N))`
-
-  - `pointer`:
-
-    `real, pointer :: a(:) => null(); allocate(a(N))`
+  - `pointer`: `real, pointer :: a(:) => null(); allocate(a(N))`
 
 
 ## Running
@@ -78,11 +72,11 @@ Here are the most commonly used options for `omb`:
 
 | Flag | Behaviour |
 | ---- | --------- |
+| `-help` | Show an extensive help text! |
 | `-n <size>` | Specify the full size of allocated arrays. |
 | | E.g. `-n 2MB` (`kB`, `MB`, `GB` are allowed). |
 | `-it <count>` | Take the minimum timing out of this many iterations. |
-| `-dtype 32|64|128` | Use the data-type with this many bytes per element. |
-| `-help` | Shows the help with much more detail! |
+| `-dtype 32\|64\|128` | Use the data-type with this many bytes per element. |
 | `-kernel <name>` | Specify the OpenMP construct used in the benchmark. |
 | | Please see `omb --help` for available kernels. |
 
