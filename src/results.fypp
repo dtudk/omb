@@ -109,11 +109,12 @@ contains
       class(results_t), intent(in) :: this
       real(real64) :: std, avg
       integer :: i
-      avg = this%time_avg()
-      if (size(this%times, 1) == 0) then
+      if (size(this%times, 1) <= 1) then
          std = 0._real64
          return
       end if
+
+      avg = this%time_avg()
 
       ! Calculate std.
       std = 0._real64

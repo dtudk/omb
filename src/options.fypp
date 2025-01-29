@@ -14,6 +14,9 @@ module options_m
    type, public :: option_kernel_t
    end type
 
+   type, public, extends(option_kernel_t) :: option_kernel_serial_t
+   end type
+
    type, public, extends(option_kernel_t) :: option_kernel_do_t
    end type
 
@@ -50,6 +53,9 @@ module options_m
 
       !< Whether we should print-out debug info
       logical :: debug = .false.
+
+      !< Whether we should print-out test info
+      logical :: test = .false.
 
       !< The kernel specification for the test runned.
       class(option_kernel_t), pointer :: kernel => null()

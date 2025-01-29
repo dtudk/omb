@@ -150,10 +150,10 @@ place_num_procs=()
 
 # Reg-exp for handling the format
 # An example line looks something like this:
-# omp place_proc_ids [1] : 0 2 4
+# omp [1] place_proc_ids  : 0,2,4
 # - [1] == 2nd place specification
 # - 0 2 4 == the 2nd thread can be places on either of these core IDs
-place_proc_ids_re="omp place_proc_ids[ ]+\[([ 0-9]*)\][ ]*:[ ]*(.*)"
+place_proc_ids_re="omp \[([ 0-9]*)\] place_proc_ids[ ]*:[ ]*(.*)"
 while IFS= read -r omp_place_proc_ids
 do
   if [[ $omp_place_proc_ids =~ $place_proc_ids_re ]]; then

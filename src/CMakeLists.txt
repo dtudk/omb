@@ -6,6 +6,7 @@ omb_fyppify(
     benchmarks.fypp
     options.fypp
     results.fypp
+    info_omp.fypp
     omb.fypp
   OUTPUT omb_fypp_sources
 )

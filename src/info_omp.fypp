@@ -1,0 +1,385 @@
+#:include "common.fypp"
+! Module for easier printing of the OpenMP environment.
+
+module info_omp_m
+
+   use omp_lib
+   use iso_fortran_env, only: OUTPUT_UNIT, ERROR_UNIT
+   use iso_fortran_env, only: real64
+
+   implicit none
+
+   private
+
+   public :: print_info_sys
+   public :: print_info_omp
+
+   ! This integer is used to size certain arrays used for internal data-output.
+   ! For very large CPU's (or GPU's) this might be too small, simply increase
+   ! it.
+   integer, parameter :: MAX_THREADS = 4096
+
+   ! If you ever have more places than 256 (threads etc.)
+   ! then bump up the values below
+   character(len=*), parameter :: FMT_SYS_I = "('sys ',a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_I = "('omp ',a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_DA = "('omp ',a,t40,':',tr1,f0.10,tr1,a)"
+   character(len=*), parameter :: FMT_L = "('omp ',a,t40,':',256(tr1,l0))"
+   character(len=*), parameter :: FMT_A = "('omp ',a,t40,':',256(tr1,a))"
+   character(len=*), parameter :: FMT_T_I = "('omp ','[',i0,']',tr1,a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_T_IDS = "('omp ','[',i0,']',tr1,a,t40,':',tr1,256(i0,:,','))"
+   character(len=*), parameter :: FMT_T_A = "('omp ','[',i0,']',tr1,a,t40,':',256(tr1,a))"
+   character(len=*), parameter :: FMT_TEAMS_I = "('omp team','[',i0,']',tr1,a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_TEAMS_IDS = "('omp team','[',i0,']',tr1,a,t40,':',tr1,256(i0,:,','))"
+   character(len=*), parameter :: FMT_TEAMS_I_I = &
+                                  "('omp team','[',i0,']',tr1,a,tr1,'[',i0,']',t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_TEAMS_I_IDS = &
+                                  "('omp team','[',i0,']',tr1,a,tr1,'[',i0,']',t40,':',tr1,256(i0,:,','))"
+   character(len=*), parameter :: FMT_TEAM_I = "('omp team','[',i0,',',i0,']',tr1,a,t40,':',256(tr1,i0))"
+   character(len=*), parameter :: FMT_TEAM_IDS = "('omp team','[',i0,',',i0,']',tr1,a,t40,':',tr1,256(i0,:,','))"
+   character(len=*), parameter :: FMT_TEAM_A = "('omp team','[',i0,',',i0,']',tr1,a,t40,':',256(tr1,a))"
+
+contains
+
+   subroutine print_info_sys()
+
+      use timing_m, only: timing_get_sys_rate
+      use timing_m, only: timing_get_sys_max
+
+      ! Generic system information
+      write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_rate", timing_get_sys_rate()
+      write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_max", timing_get_sys_max()
+
+   end subroutine
+
+   subroutine print_info_omp()
+      character(len=2048) :: affinity_fmt, string
+      integer :: n, i
+      integer :: thread, io_thread
+      integer(OMP_PROC_BIND_KIND) :: proc_bind
+
+      ! Generic information on the openmp environment
+
+      ! Get information on the tick precision.
+      block
+         real(real64) :: wtick
+         wtick = omp_get_wtick()
+         if (wtick < 1e-9_real64) then
+            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e12, "ps"
+         else if (wtick < 1e-6_real64) then
+            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e9, "ns"
+         else if (wtick < 1e-3_real64) then
+            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e6, "us"
+         else
+            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e3, "ms"
+         end if
+      end block
+
+      write (OUTPUT_UNIT, FMT_i) "max_threads", omp_get_max_threads()
+      write (OUTPUT_UNIT, FMT_i) "num_threads", omp_get_num_threads()
+      write (OUTPUT_UNIT, FMT_i) "thread_limit", omp_get_thread_limit()
+      write (OUTPUT_UNIT, FMT_i) "num_procs", omp_get_num_procs()
+
+      ! Print-certain env-vars
+      call print_info_env("OMP_ALLOCATOR")
+      call print_info_env("OMP_CANCELLATION")
+      call print_info_env("OMP_DEBUG")
+      call print_info_env("OMP_DEFAULT_DEVICE")
+      call print_info_env("OMP_DYNAMIC")
+      call print_info_env("OMP_MAX_ACTIVE_LEVELS")
+      call print_info_env("OMP_NESTED")
+      call print_info_env("OMP_NUM_THREADS")
+      call print_info_env("OMP_PLACES")
+      call print_info_env("OMP_PROC_BIND")
+      call print_info_env("OMP_SCHEDULE")
+      call print_info_env("OMP_STACKSIZE")
+      call print_info_env("OMP_TARGET_OFFLOAD")
+      call print_info_env("OMP_THREAD_LIMIT")
+      call print_info_env("OMP_TOOL")
+      call print_info_env("OMP_WAIT_POLICY")
+
+      ! Print basic affinity information
+      affinity_fmt = " "
+      n = omp_get_affinity_format(affinity_fmt)
+      if (n > len(affinity_fmt)) then
+         write (ERROR_UNIT, '(a,tr1,i0,tr1,a)') "Affinity format size is not big enough", n
+         stop 101
+      end if
+      write (OUTPUT_UNIT, FMT_a) "affinity_format", trim(adjustl(affinity_fmt))
+
+      n = omp_capture_affinity(string, "%H")
+      if (n > len(string)) then
+         write (ERROR_UNIT, '(a,tr1,i0,tr1,a)') "Affinity format [%H] size is not big enough", n
+         stop 101
+      end if
+      write (OUTPUT_UNIT, FMT_a) "host", trim(adjustl(string))
+
+      n = omp_capture_affinity(string, "%P")
+      if (n > len(string)) then
+         write (ERROR_UNIT, '(a,tr1,i0,tr1,a)') "Affinity format [%H] size is not big enough", n
+         stop 101
+      end if
+      write (OUTPUT_UNIT, FMT_a) "process_id", trim(adjustl(string))
+
+      if (omp_get_dynamic()) then
+         write (OUTPUT_UNIT, FMT_a) "dynamic", "true"
+      else
+         write (OUTPUT_UNIT, FMT_a) "dynamic", "false"
+      end if
+
+      proc_bind = omp_get_proc_bind()
+      select case (proc_bind)
+      case (OMP_PROC_BIND_FALSE)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "false"
+      case (OMP_PROC_BIND_TRUE)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "true"
+      case (OMP_PROC_BIND_MASTER)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "master"
+      case (OMP_PROC_BIND_CLOSE)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "close"
+      case (OMP_PROC_BIND_SPREAD)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "spread"
+      case default
+         write (OUTPUT_UNIT, FMT_i) "proc_bind", proc_bind
+      end select
+
+      block
+
+         integer(OMP_SCHED_KIND) :: sched
+         integer :: chunk
+
+         ! Write out scheduling information
+         call omp_get_schedule(sched, chunk)
+         select case (sched)
+         case (OMP_SCHED_STATIC)
+            write (OUTPUT_UNIT, FMT_a) "schedule", "static"
+         case (OMP_SCHED_DYNAMIC)
+            write (OUTPUT_UNIT, FMT_a) "schedule", "dynamic"
+         case (OMP_SCHED_GUIDED)
+            write (OUTPUT_UNIT, FMT_a) "schedule", "guided"
+         case (OMP_SCHED_AUTO)
+            write (OUTPUT_UNIT, FMT_a) "schedule", "auto"
+            !case ( OMP_SCHED_MONOTONIC )
+            !   write(OUTPUT_UNIT,FMT_a) "omp schedule", "monotonic"
+         case default
+            write (OUTPUT_UNIT, FMT_i) "schedule", sched
+         end select
+         write (OUTPUT_UNIT, FMT_i) "schedule_chunk", chunk
+
+      end block
+
+!$omp parallel default(private)
+
+!$omp single
+      write (OUTPUT_UNIT, FMT_i) "num_places", omp_get_num_places()
+      do i = 0, omp_get_num_places() - 1
+
+         ! Since omp_place is not depending on the encapsulated environment
+         ! it will always return the same thing.
+         ! Except if runned on a different device.
+         call print_info_omp_place(i)
+
+      end do
+      flush OUTPUT_UNIT
+
+      call print_info_omp_devices()
+
+!$omp end single
+
+      flush OUTPUT_UNIT
+
+      ! Print out stuff inside a parallel region
+
+      thread = omp_get_thread_num()
+
+      ! print out for each thread, in order!
+      do io_thread = 0, omp_get_max_threads() - 1
+         if (io_thread == thread) then
+            n = omp_capture_affinity(string, "%i | %P")
+            write (OUTPUT_UNIT, FMT_t_a) thread, "thread_id | process_id", trim(adjustl(string))
+
+            ! get this thread information
+            call print_info_omp_partitions()
+
+         end if
+!$omp barrier
+         flush OUTPUT_UNIT
+      end do
+
+!$omp end parallel
+
+      #:if OMB_OMP_TEAMS > 0
+!$omp teams
+
+         call info_print_omp_teams()
+
+!$omp end teams
+      #:endif
+
+   end subroutine
+
+   subroutine info_get_env(env, string)
+      character(len=*), intent(in) :: env
+      character(len=*), intent(out) :: string
+
+      integer :: l
+
+      call get_environment_variable(env, string, l)
+      if (l > len(string)) then
+         write (ERROR_UNIT, *) "Trying to read environment variable: "//env
+         write (ERROR_UNIT, *) "Failed because the length of the reading"
+         write (ERROR_UNIT, *) "variable is too short."
+         stop 4
+      end if
+
+      string = adjustl(string)
+
+   end subroutine
+
+   subroutine print_info_env(env)
+      character(len=*), intent(in) :: env
+      character(len=1024) :: string
+
+      call info_get_env(env, string)
+      if (len_trim(string) == 0) then
+         write (OUTPUT_UNIT, FMT_A) env, "<empty>"
+      else
+         write (OUTPUT_UNIT, FMT_A) env, trim(string)
+      end if
+
+   end subroutine
+
+   subroutine print_info_omp_place(place_id, team)
+      integer, intent(in), optional :: place_id, team
+
+      integer :: n, thread, lplace_id
+      integer :: proc_ids(MAX_THREADS)
+
+      if (present(place_id)) then
+         lplace_id = place_id
+      else
+         lplace_id = omp_get_place_num()
+      end if
+
+      n = omp_get_place_num_procs(lplace_id)
+      call omp_get_place_proc_ids(lplace_id, proc_ids)
+
+      if (present(team) .and. present(place_id)) then
+         !write (OUTPUT_UNIT, FMT_teams_i_i) team, "place_num_procs", lplace_id, n
+         if (lplace_id >= 0) then
+            write (OUTPUT_UNIT, FMT_teams_i_ids) team, "place_proc_ids", &
+               lplace_id, proc_ids(1:n)
+         end if
+
+      else if (present(team)) then
+         thread = omp_get_thread_num()
+         !write (OUTPUT_UNIT, FMT_team_i) team, thread, "place_num", lplace_id
+         !write (OUTPUT_UNIT, FMT_team_i) team, thread, "place_num_procs", n
+         if (lplace_id >= 0) &
+            write (OUTPUT_UNIT, FMT_team_ids) team, thread, "place_proc_ids", proc_ids(1:n)
+
+      else
+         write (OUTPUT_UNIT, FMT_t_i) lplace_id, "place_num_procs", n
+         if (lplace_id >= 0) &
+            write (OUTPUT_UNIT, FMT_t_ids) lplace_id, "place_proc_ids", proc_ids(1:n)
+
+      end if
+
+   end subroutine
+
+   subroutine print_info_omp_partitions(team)
+      integer, intent(in), optional :: team
+
+      integer :: n, thread
+      integer :: proc_ids(MAX_THREADS)
+
+      #:if OMB_OMP_PARTITION > 0
+
+         n = omp_get_partition_num_places()
+         call omp_get_partition_place_nums(proc_ids)
+
+         if (present(team)) then
+            write (OUTPUT_UNIT, FMT_teams_i) team, "partition_num_places", n
+            write (OUTPUT_UNIT, FMT_teams_ids) team, "partition_place_nums", proc_ids(1:n)
+         else
+            thread = omp_get_thread_num()
+            write (OUTPUT_UNIT, FMT_t_i) thread, "partition_num_places", n
+            write (OUTPUT_UNIT, FMT_t_ids) thread, "partition_place_nums", proc_ids(1:n)
+         end if
+      #:endif
+
+   end subroutine
+
+   subroutine print_info_omp_devices()
+
+      #:if OMB_OMP_DEVICE > 0
+         write (OUTPUT_UNIT, FMT_i) "num_devices", omp_get_num_devices()
+         write (OUTPUT_UNIT, FMT_i) "default_device", omp_get_default_device()
+         write (OUTPUT_UNIT, FMT_i) "device_num", omp_get_device_num()
+      #:endif
+   end subroutine
+
+   subroutine info_print_omp_teams()
+      integer :: teams, team, io_team
+      integer :: threads, thread, io_thread
+      integer :: place_id
+
+      ! Try and figure out how the teams construct would handle this
+      #:if OMB_OMP_TEAMS > 0
+
+         ! Get number of teams
+         teams = omp_get_num_teams()
+
+         team = omp_get_team_num()
+         if (team == 0) then
+            ! AFAIK there is no synchronization in a teams construct
+            write (OUTPUT_UNIT, FMT_i) "num_teams", teams
+         end if
+
+         ! Use the parallel construct in the team construct
+         ! That is the only way we can create barriers etc.
+!$omp parallel default(private) shared(teams,team)
+
+         ! See how many threads we have in this team...
+         threads = omp_get_num_threads()
+         thread = omp_get_thread_num()
+
+         do io_team = 0, teams - 1
+            if (team == io_team .and. thread == 0) then
+               write (OUTPUT_UNIT, FMT_teams_i) team, "num_threads", threads
+
+               ! write out allowed partitions for this enclosing team
+               call print_info_omp_partitions(team=team)
+
+               do place_id = 0, omp_get_num_places() - 1
+
+                  ! Since omp_place is not depending on the encapsulated environment
+                  ! it will always return the same thing.
+                  ! Except if runned on a different device.
+                  call print_info_omp_place(place_id, team=team)
+
+               end do
+
+            end if
+!$omp barrier
+            flush OUTPUT_UNIT
+
+            do io_thread = 0, threads - 1
+               if (io_thread == thread) then
+
+                  call print_info_omp_place(team=team)
+
+               end if
+!$omp barrier
+               flush OUTPUT_UNIT
+            end do
+
+         end do
+
+!$omp end parallel
+
+      #:endif
+
+   end subroutine
+
+end module

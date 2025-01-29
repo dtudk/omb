@@ -1,15 +1,14 @@
 #:include "common.fypp"
 
 ! Start timing fypp method
+! We have experienced some problems with single.
+! Say if the CPU is comprising a varying amount of
+! efficiency vs. performance cores, then the timings
+! can sometimes get negative... :(
+! By enforcing a particular thread to do the timing
+! we should remove this problem *fingers crossed*
 #:def START_TIMING(in_teams=0)
-   ! We have experienced some problems with single.
-   ! Say if the CPU is comprising a varying amount of
-   ! efficiency vs. performance cores, then the timings
-   ! can sometimes get negative... :(
-   ! By enforcing a particular thread to do the timing
-   ! we should remove this problem *fingers crossed*
    #:if in_teams == 0
-      ! just to ensure we are aligned before the master
       !$omp barrier
       !$omp master
       call timing%start()
@@ -20,6 +19,7 @@
       end if
    #:endif
 #:enddef
+
 #:def STOP_TIMING(var, in_teams=0)
    #:if in_teams == 0
       !$omp master
@@ -50,6 +50,7 @@
       #:endif
    #:endfor
 #:enddef ARRAY_DEFINE
+
 ! Since we allow multiple variations of array definitions.
 ! The complexity is hidden in the ARRAY_DEALLOC method.
 #:def ARRAY_DEALLOC(*names)
@@ -131,6 +132,8 @@ module benchmarks_m
       #:endfor
    end interface
 
+   character(len=*), parameter, private :: test_fmt = "(tr1,es17.9)"
+
 contains
 
    #:for real in REALS
@@ -158,9 +161,10 @@ contains
 
       end subroutine
 
-      subroutine first_touch_parallel_${real}$ (n, a)
+      subroutine first_touch_parallel_${real}$ (n, a, v)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
+         real(${real}$), intent(in) :: v
 
          integer(${OMB_INT_TYPE}$) :: i
 
@@ -172,24 +176,26 @@ contains
 
       end subroutine
 
-      subroutine first_touch_serial_${real}$ (n, a)
+      subroutine first_touch_serial_${real}$ (n, a, v)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
+         real(${real}$), intent(in) :: v
 
          integer(${OMB_INT_TYPE}$) :: i
 
 !$omp master
          do i = 1, n
-            a(i) = 0.5_${real}$
+            a(i) = v
          end do
 !$omp end master
 !$omp barrier
 
       end subroutine
 
-      subroutine init_array_${real}$ (n, a, options)
+      subroutine init_array_${real}$ (n, a, v, options)
          integer(${OMB_INT_TYPE}$), intent(in) :: n
          real(${real}$), intent(inout) :: a(n)
+         real(${real}$), intent(in) :: v
          type(options_t), intent(in):: options
 
          integer(${OMB_INT_TYPE}$) :: i
@@ -197,9 +203,9 @@ contains
          integer :: it
 
          if (options%first_touch) then
-            call first_touch_parallel(n, a)
+            call first_touch_parallel(n, a, v)
          else
-            call first_touch_serial(n, a)
+            call first_touch_serial(n, a, v)
          end if
 
          do it = 1, options%warmup_it
@@ -232,10 +238,21 @@ contains
 
 !$omp parallel shared(n,a,options)
          call array_allocate(n, a, options)
-         call init_array(n, a, options)
+         call init_array(n, a, 0.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  sum_a = sum_a + a(i)
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,options,results) &
@@ -321,6 +338,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -333,8 +354,8 @@ contains
 
          call results%update(1, n, 1, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -357,10 +378,21 @@ contains
 
 !$omp parallel shared(n,a,options)
          call array_allocate(n, a, options)
-         call init_array(n, a, options)
+         call init_array(n, a, 0.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = fill
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,fill,options,results) &
@@ -444,6 +476,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -456,8 +492,8 @@ contains
 
          call results%update(1, n, 0, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -478,11 +514,22 @@ contains
 !$omp parallel shared(n,a,b,options)
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
-         call init_array(n, a, options)
-         call init_array(n, b, options)
+         call init_array(n, a, 0.5_${real}$, options)
+         call init_array(n, b, 1.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = b(i)
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,b,options,results) &
@@ -566,6 +613,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -578,8 +629,8 @@ contains
 
          call results%update(2, n, 0, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -603,11 +654,22 @@ contains
 !$omp parallel shared(n,a,b,options)
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
-         call init_array(n, a, options)
-         call init_array(n, b, options)
+         call init_array(n, a, 0.5_${real}$, options)
+         call init_array(n, b, 1.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = scale*b(i)
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,b,scale,options,results) &
@@ -691,6 +753,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -703,8 +769,8 @@ contains
 
          call results%update(2, n, 1, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -726,12 +792,23 @@ contains
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
          call array_allocate(n, c, options)
-         call init_array(n, a, options)
-         call init_array(n, b, options)
-         call init_array(n, c, options)
+         call init_array(n, a, 0.5_${real}$, options)
+         call init_array(n, b, 1.5_${real}$, options)
+         call init_array(n, c, 2.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = b(i) + c(i)
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,b,c,options,results) &
@@ -815,6 +892,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -827,8 +908,8 @@ contains
 
          call results%update(3, n, 1, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -853,12 +934,23 @@ contains
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
          call array_allocate(n, c, options)
-         call init_array(n, a, options)
-         call init_array(n, b, options)
-         call init_array(n, c, options)
+         call init_array(n, a, 0.5_${real}$, options)
+         call init_array(n, b, 1.5_${real}$, options)
+         call init_array(n, c, 2.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,b,c,scale,options,results) &
@@ -941,6 +1033,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -953,8 +1049,8 @@ contains
 
          call results%update(3, n, 2, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -978,11 +1074,22 @@ contains
 !$omp parallel shared(n,a,b,options)
          call array_allocate(n, a, options)
          call array_allocate(n, b, options)
-         call init_array(n, a, options)
-         call init_array(n, b, options)
+         call init_array(n, a, 0.5_${real}$, options)
+         call init_array(n, b, 1.5_${real}$, options)
 !$omp end parallel
 
          select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = a(i) + scale*b(i)
+               end do
+               call timing%stop()
+               results%times(it) = timing%time
+            end do
 
          type is (option_kernel_teams_distribute_t)
 !$omp teams private(it,i,team) shared(n,a,b,scale,options,results) &
@@ -1066,6 +1173,10 @@ contains
                   end do
 !$omp end loop
 
+               class default
+
+                  stop 5
+
                end select
 
                @:STOP_TIMING(results%times(it))
@@ -1078,8 +1189,8 @@ contains
 
          call results%update(2, n, 2, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -1120,9 +1231,9 @@ contains
 !$omp parallel private(it,i,id) shared(n,a,b,scale,options,results)
 
          ! Direct call to omit interface constructs which has different shape
-         call init_array_${real}$ (options%num_threads*n, a, options)
-         call init_array_${real}$ (options%num_threads*n, b, options)
-         call init_array_${real}$ (options%num_threads*n, c, options)
+         call init_array_${real}$ (options%num_threads*n, a, 0.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, b, 1.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, c, 2.5_${real}$, options)
 
          ! Get local thread-id
          id = omp_get_thread_num() + 1
@@ -1148,8 +1259,8 @@ contains
 
          call results%update(3, options%num_threads*n, 2, storage_size(1.0_${real}$))
 
-         if (options%debug) then
-            print *, sum(a)
+         if (options%test) then
+            write (*, test_fmt) sum(a)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
