@@ -35,6 +35,7 @@ module info_omp_m
    character(len=*), parameter :: FMT_SYS_I = "('sys ',a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_I = "('omp ',a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_DA = "('omp ',a,t40,':',tr1,f0.10,tr1,a)"
+   character(len=*), parameter :: FMT_T_DA = "('omp ','[',i0,']',tr1,a,t40,':',tr1,f0.10,tr1,a)"
    character(len=*), parameter :: FMT_L = "('omp ',a,t40,':',256(tr1,l0))"
    character(len=*), parameter :: FMT_A = "('omp ',a,t40,':',256(tr1,a))"
    character(len=*), parameter :: FMT_T_I = "('omp ','[',i0,']',tr1,a,t40,':',256(tr1,i0))"
@@ -70,31 +71,42 @@ contains
       integer :: n, i
       integer :: thread, io_thread
       integer(OMP_PROC_BIND_KIND) :: proc_bind
+      real(real64) :: wtick
 
       ! Generic information on the openmp environment
 
-      ! Get information on the tick precision.
-      block
-         real(real64) :: wtick
-         wtick = omp_get_wtick()
-         if (wtick < 1e-9_real64) then
-            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e12, "ps"
-         else if (wtick < 1e-6_real64) then
-            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e9, "ns"
-         else if (wtick < 1e-3_real64) then
-            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e6, "us"
-         else
-            write (OUTPUT_UNIT, FMT_da) "wtick", wtick*1e3, "ms"
-         end if
-      end block
-
-!$omp parallel
+!$omp parallel default(private)
 !$omp single
       write (OUTPUT_UNIT, FMT_i) "max_threads", omp_get_max_threads()
       write (OUTPUT_UNIT, FMT_i) "num_threads", omp_get_num_threads()
       write (OUTPUT_UNIT, FMT_i) "thread_limit", omp_get_thread_limit()
       write (OUTPUT_UNIT, FMT_i) "num_procs", omp_get_num_procs()
 !$omp end single
+
+      thread = omp_get_thread_num()
+      do io_thread = 0, omp_get_num_threads() - 1
+         if (thread == io_thread) then
+
+            ! Get information on the tick precision.
+            ! The specification explicitly says that
+            ! each thread can have its own tick value.
+            wtick = omp_get_wtick()
+            i = omp_get_place_num()
+            if (wtick < 1e-9_real64) then
+               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e12, "ps"
+            else if (wtick < 1e-6_real64) then
+               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e9, "ns"
+            else if (wtick < 1e-3_real64) then
+               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e6, "us"
+            else
+               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e3, "ms"
+            end if
+
+         end if
+!$omp barrier
+         flush OUTPUT_UNIT
+
+      end do
 !$omp end parallel
 
       ! Print-certain env-vars
