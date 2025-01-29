@@ -75,10 +75,14 @@ contains
          end if
       end block
 
+!$omp parallel
+!$omp single
       write (OUTPUT_UNIT, FMT_i) "max_threads", omp_get_max_threads()
       write (OUTPUT_UNIT, FMT_i) "num_threads", omp_get_num_threads()
       write (OUTPUT_UNIT, FMT_i) "thread_limit", omp_get_thread_limit()
       write (OUTPUT_UNIT, FMT_i) "num_procs", omp_get_num_procs()
+!$omp end single
+!$omp end parallel
 
       ! Print-certain env-vars
       call print_info_env("OMP_ALLOCATOR")
@@ -120,6 +124,10 @@ contains
          stop 101
       end if
       write (OUTPUT_UNIT, FMT_a) "process_id", trim(adjustl(string))
+
+!$omp parallel default(private)
+
+!$omp single
 
       if (omp_get_dynamic()) then
          write (OUTPUT_UNIT, FMT_a) "dynamic", "true"
@@ -170,9 +178,6 @@ contains
 
       flush OUTPUT_UNIT
 
-!$omp parallel default(private)
-
-!$omp single
       write (OUTPUT_UNIT, FMT_i) "num_places", omp_get_num_places()
       do i = 0, omp_get_num_places() - 1
 

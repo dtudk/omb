@@ -22,6 +22,7 @@
 
 #:def STOP_TIMING(var, in_teams=0)
    #:if in_teams == 0
+      !$omp barrier
       !$omp master
       call timing%stop()
       ${var}$ = timing%time
@@ -332,7 +333,7 @@ contains
                      sum_a = sum_a + a(i)
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
@@ -474,7 +475,7 @@ contains
                      a(i) = fill
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
@@ -615,7 +616,7 @@ contains
                      a(i) = b(i)
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
@@ -759,7 +760,7 @@ contains
                      a(i) = scale*b(i)
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
@@ -902,7 +903,7 @@ contains
                      a(i) = b(i) + c(i)
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
@@ -1047,7 +1048,7 @@ contains
                      a(i) = b(i) + scale*c(i)
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
@@ -1191,7 +1192,7 @@ contains
                      a(i) = a(i) + scale*b(i)
                   end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 
 !$omp taskwait
 
