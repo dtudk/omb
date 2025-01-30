@@ -91,10 +91,14 @@ fi
 # Define options here
 _args=()
 _only_one=0
+_no_place_info=0
 while [ $# -gt 0 ]; do
   case $1 in
-    -Dno-loop)
+    -Dsingle)
       _only_one=1
+      ;;
+    -Dwithout-place-info)
+      _no_place_info=1
       ;;
     *)
       _args+=($1)
@@ -257,7 +261,10 @@ function run_bench_places {
   for id in ${bench_places[@]}
   do
     # Print out the fields
-    printf "$fmt " "${place_proc_ids[$id]}"
+    if [[ $_no_place_info -eq 0 ]]; then
+      # Explicitly do not put in a line-feed
+      printf "$fmt " "${place_proc_ids[$id]}"
+    fi
     OMP_PLACES="$OMP_PLACES,{${place_proc_ids[$id]}}"
   done
 

@@ -748,7 +748,7 @@ contains
       character(len=*), parameter :: fmt_opt_a = "(t3,'--',a,t18,': ',a)"
       character(len=*), parameter :: fmt_oa = "(t18,'  ',a)"
       character(len=*), parameter :: fmt_arg_a = "(t3,'  ',a,t18,': ',a)"
-      character(len=*), parameter :: fmt_aa = "(t1,'  ',a)"
+      character(len=*), parameter :: fmt_aa = "(t18,'  ',a)"
       character(len=*), parameter :: fmt_nl = "(a)"
 
       ! Get executable name
@@ -808,6 +808,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "warmup", "how many warm-up iterations are done before timing"
+      write (OUTPUT_UNIT, fmt_oa) "A parallel do construct will be used, regardless of kernel."
       write (OUTPUT_UNIT, fmt_oa) "Default is 1."
       write (OUTPUT_UNIT, fmt_nl)
 
@@ -859,7 +860,6 @@ write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, gr
          write (OUTPUT_UNIT, fmt_col) "GFLOPS", "maxmimum FLOPS in G/s (using TIME_MIN)"
       end block
 
-      write (OUTPUT_UNIT, fmt_nl)
    end subroutine
 
 end program

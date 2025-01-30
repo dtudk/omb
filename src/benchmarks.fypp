@@ -271,7 +271,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   sum_a = sum_a + a(i)
                end do
@@ -421,7 +421,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   a(i) = fill
                end do
@@ -569,7 +569,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   a(i) = b(i)
                end do
@@ -720,7 +720,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   a(i) = scale*b(i)
                end do
@@ -870,7 +870,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   a(i) = b(i) + c(i)
                end do
@@ -1023,7 +1023,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   a(i) = b(i) + scale*c(i)
                end do
@@ -1174,7 +1174,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i)
+!$omp distribute private(i) dist_schedule(static)
                do i = 1, n
                   a(i) = a(i) + scale*b(i)
                end do
