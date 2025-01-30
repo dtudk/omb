@@ -107,6 +107,47 @@ As an example lets invoke `omb` with
 OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb triad -kernel do:simd -it 10 -n 20MB
 ```
 
+### Running the *driver*
+
+Together with the `omb` executable there is a driver that enables easy
+test of a set of places. The driver executable is named `omb-driver` which
+is a simple `bash` script.
+
+It is a shortcut driver for testing combinations of places of threads.
+It is best shown by an example:
+
+```shell
+OMP_NUM_THREADS=3 OMP_PLACES=0,{1,2},4,5,10 omb-driver
+```
+will run several *tests* all with only 3 threads.
+This will be equivalent to running all these (note it is the upper
+triangular part of the product combination of placement):
+```shell
+export OMP_NUM_THREADS=3
+
+# Example: prefix output will be
+#  0 1,2 4 $(omb)
+OMP_PLACES=0,{1,2},4 omb
+OMP_PLACES=0,{1,2},5 omb
+OMP_PLACES=0,{1,2},10 omb
+OMP_PLACES=0,4,5 omb
+OMP_PLACES=0,4,10 omb
+OMP_PLACES=0,5,10 omb
+OMP_PLACES={1,2},4,5 omb
+OMP_PLACES={1,2},4,10 omb
+OMP_PLACES={1,2},5,10 omb
+OMP_PLACES=4,5,10 omb
+```
+Note that by default it amends the output by prefixing with
+the placement of the threads as understood by `omb`, see
+note in the snippet above.
+
+If one does not wish to prefix with the placement id's of each
+thread on can call it as `omb-driver -Dwithout-place-info` to
+omit the prefix.
+
+
+
 ### Implementation remarks
 
 The `omb` benchmark program is an extension of the [STREAM](http://www.cs.virginia.edu/stream/ref.html)
