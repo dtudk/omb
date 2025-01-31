@@ -160,6 +160,9 @@ contains
          #:endif
 !$omp end ${OMB_OMP_MASKED}$
 
+! Ensure we have it allocated before use
+!$omp barrier
+
       end subroutine
 
       subroutine first_touch_parallel_${real}$ (n, a, v)

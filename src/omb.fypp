@@ -56,7 +56,6 @@ program main
    ! to move the entire array out and ensure no caching is there...
    ! So, lets just take 512MB for safety.
    ! This means that the total memory is 512MB of memory
-   real(real64), parameter :: bytes2kB = 1._real64/1024
    real(real64), parameter :: bytes2MB = 1._real64/1024**2
    real(real64) :: bytes = 512._real64*1024**2
    type(options_t) :: options
