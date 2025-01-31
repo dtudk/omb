@@ -90,7 +90,7 @@ different methods. The default method to run the benchmark on is the
 | `axpy` |  `a = a + b * 2` |
 | `scale` | `a = b * 2` |
 | `add` |   `a = b + c` |
-| `fill` |  `a(:) = 2.` |
+| `fill` |  `a = 2.` |
 | `sum` |   `res = sum(a)` |
 | `copy` |  `a = b` |
 

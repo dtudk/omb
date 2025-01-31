@@ -61,6 +61,7 @@ set(OMB_ALLOC_TYPE "stack" CACHE STRING "How the arrays are constructed
 set_property(CACHE OMB_ALLOC_TYPE
   PROPERTY STRINGS allocatable pointer stack)
 
+
 # Append choice to fypp flags
 list(APPEND OMB_FYPP_FLAGS -DOMB_ALLOC_TYPE="'${OMB_ALLOC_TYPE}'")
 

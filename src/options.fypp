@@ -31,8 +31,12 @@ module options_m
    end type
 
    !< Use the parallel taskloop construct.
+   !<
+   !< The taskloop construct adds an implicit taskgroup around.
+   !< We default to use this because it is required for reduction
+   !< operations.
    type, public, extends(option_kernel_t) :: option_kernel_taskloop_t
-      integer(${OMB_INT_KIND}$) :: grainsize = 1
+      integer(${OMB_INT_KIND}$) :: num_tasks = -1
    end type
 
    !< Use the parallel loop construct.

@@ -50,7 +50,7 @@ program main
    integer :: elem_bits, elem_bytes
    integer(int64) :: big_n
    integer(${OMB_INT_KIND}$) :: n, n_dim2
-   integer :: grainsize = 0
+   integer :: num_tasks = 0
 
    ! We need to at least have each array size on the order of 4 times the cache size
    ! to move the entire array out and ensure no caching is there...
@@ -129,7 +129,7 @@ program main
                character(len=len(arg)) :: left, right
                call split_comma(arg, left, right)
                if (len_trim(right) > 0) then
-                  read (right, *) grainsize
+                  read (right, *) num_tasks
                end if
                ! Always remove everything right of comma :)
                arg = left
@@ -160,7 +160,7 @@ program main
 
             select type (kernel => options%kernel)
             type is (option_kernel_taskloop_t)
-               kernel%grainsize = grainsize
+               kernel%num_tasks = num_tasks
             end select
 
          case ("fill")
@@ -503,13 +503,23 @@ program main
       options%it = 50
    end if
 
-   ! In case the kernel is the taskloop, and the grainsize is < 1, then
-   ! we'll create a default grainsize such that all threads gets
-   ! 10 tasks
+   ! In case the kernel is the taskloop, and the num_tasks is < 1, then
    select type (kernel => options%kernel)
    type is (option_kernel_taskloop_t)
-      if (kernel%grainsize < 1) then
-         kernel%grainsize = n/(10*options%num_threads)
+      if (kernel%num_tasks < 1) then
+         ! Decide a *good* number of tasks.
+         ! For large counts of elements we should be able
+         ! to split into ~10 tasks per thread.
+         ! For very few elements, this might be too much.
+         ! Hence we decide that a stride of 8 elements is a *good*
+         ! choice. So task size should be ~8 for optimal perf.
+         ! Therefore we take the minimum of elements/8
+         ! and 10 *num_threads.
+         if (big_n/8 < 10*options%num_threads) then
+            kernel%num_tasks = max(1, big_n/8)
+         else
+            kernel%num_tasks = 10*options%num_threads
+         end if
       end if
    end select
 
@@ -538,7 +548,7 @@ program main
          write (OUTPUT_UNIT, "(a)") "workshare"
       type is (option_kernel_taskloop_t)
          write (OUTPUT_UNIT, "(a)") "taskloop"
-         write (OUTPUT_UNIT, debug_fmt_i) "taskloop_grainsize", kernel%grainsize
+         write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
       type is (option_kernel_loop_t)
          write (OUTPUT_UNIT, "(a)") "loop"
       type is (option_kernel_teams_distribute_t)
@@ -756,7 +766,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, '(2a)') "OpenMP benchmark program: ", trim(arg)
       write (OUTPUT_UNIT, fmt_nl)
-      write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program with more options."
+      write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program written in fortran."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, '(a)') "Methods:"
@@ -764,7 +774,7 @@ contains
       write (OUTPUT_UNIT, fmt_arg_a) "axpy", "a = a + b * 2"
       write (OUTPUT_UNIT, fmt_arg_a) "scale", "a = b * 2"
       write (OUTPUT_UNIT, fmt_arg_a) "add", "a = b + c"
-      write (OUTPUT_UNIT, fmt_arg_a) "fill", "a(:) = 2."
+      write (OUTPUT_UNIT, fmt_arg_a) "fill", "a = 2."
       write (OUTPUT_UNIT, fmt_arg_a) "sum", "res = sum(a)"
       write (OUTPUT_UNIT, fmt_arg_a) "copy", "a = b"
       write (OUTPUT_UNIT, fmt_arg_a) "triad-fs", "a = b + c * 2"
@@ -783,13 +793,14 @@ contains
       write (OUTPUT_UNIT, fmt_oa) " - do -> use parallel do clause [default]"
       write (OUTPUT_UNIT, fmt_oa) " - do:simd -> use parallel do simd clause"
       write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
-      write (OUTPUT_UNIT, fmt_oa) "    lhs-realloc is explicitly prohibited by a(:) = ..."
-      write (OUTPUT_UNIT, fmt_oa) " - taskloop[,grainsize] -> use parallel taskloop clause"
-      write (OUTPUT_UNIT, fmt_oa) "   default grainsize lets each thread get ~10 tasks."
-      write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) "   lhs-realloc is explicitly prohibited by a(:) = ..."
+      write (OUTPUT_UNIT, fmt_oa) " - taskloop[,num_tasks] -> use parallel taskloop clause"
+      write (OUTPUT_UNIT, fmt_oa) "   default num_tasks lets each thread get ~10 tasks or tasks of min size 8"
       write (OUTPUT_UNIT, fmt_oa) " - teams:parallel -> abuse the teams parallel workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - loop -> abuse the loop workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) "   expect poor perf. due to bad teams distribution."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
@@ -836,7 +847,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
     write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -first-touch master -kernel taskloop,32 -dtype 32 -n 2GB triad -it 200 -warmup 2"
       write (OUTPUT_UNIT, fmt_nl)
-write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, grainsize of 32, 4-byte reals, 3 arrays of total 2GB,"
+write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
       write (OUTPUT_UNIT, fmt_nl) "running 2 warmup iterations, then 200 iterations, with serial first-touch of the arrays."
 
       write (OUTPUT_UNIT, fmt_nl)
