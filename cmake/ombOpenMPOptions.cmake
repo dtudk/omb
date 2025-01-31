@@ -61,7 +61,7 @@ if( NOT f_omp_partition )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PARTITION=0")
 endif()
 
-CHECK_START("* has masked construct (master deprecated [5.1])")
+CHECK_START("* has masked construct (master deprecated since 5.1)")
 set(source "
 use omp_lib
 !$omp parallel
