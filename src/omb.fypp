@@ -112,6 +112,7 @@ program main
             ! Also show teams information
             ! Default to not show it since it gets quite verbose!
             info_env%teams = .true.
+            info_env%show = .true.
 
          case ("-kernel", "--kernel")
 

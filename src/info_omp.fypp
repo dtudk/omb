@@ -129,11 +129,13 @@ contains
       call print_info_env("OMP_MAX_ACTIVE_LEVELS")
       call print_info_env("OMP_NESTED")
       call print_info_env("OMP_NUM_THREADS")
+      call print_info_env("OMP_NUM_TEAMS")
       call print_info_env("OMP_PLACES")
       call print_info_env("OMP_PROC_BIND")
       call print_info_env("OMP_SCHEDULE")
       call print_info_env("OMP_STACKSIZE")
       call print_info_env("OMP_TARGET_OFFLOAD")
+      call print_info_env("OMP_TEAMS_THREAD_LIMIT")
       call print_info_env("OMP_THREAD_LIMIT")
       call print_info_env("OMP_TOOL")
       call print_info_env("OMP_WAIT_POLICY")
@@ -394,6 +396,8 @@ contains
          if (team == 0) then
             ! AFAIK there is no synchronization in a teams construct
             write (OUTPUT_UNIT, FMT_i) "num_teams", teams
+            write (OUTPUT_UNIT, FMT_i) "max_teams", omp_get_max_teams()
+            write (OUTPUT_UNIT, FMT_i) "teams_thread_limit", omp_get_teams_thread_limit()
          end if
 
          ! Use the parallel construct in the team construct
