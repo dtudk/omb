@@ -43,24 +43,38 @@ a very bad performance).
 
 ### Controlling allocation behavior
 
-There are certain flags that allows one to compile `omb` in various
-formats.
+There are certain CMake flags that allows one to compile `omb` in various
+formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
 
 - `OMB_INT_KIND`
   Controls the integer kind for the loop and size counters.
   It defaults to the 64-byte integer.
 
-- `OMP_ALLOC_TYPE`
+- `OMB_ALLOC_TYPE`
   Fortran allows 3 different ways of allocating memory.
   In `omb` all allocations and array declarations are done
   in a single subroutine. Hence, the influence of the array
   declarations can impact performance.
 
-  - `stack`: `real :: a(N)`
+  - `stack`
 
-  - `allocatable`: `real, allocatable :: a(:) ; allocate(a(N))`
+    ```fortran
+    real :: a(N)
+    ```
 
-  - `pointer`: `real, pointer :: a(:) => null(); allocate(a(N))`
+  - `allocatable`
+
+    ```fortran
+    real, allocatable :: a(:)
+    allocate(a(N))
+    ```
+
+  - `pointer`
+
+    ```fortran
+    real, pointer :: a(:) => null()
+    allocate(a(N))
+    ```
 
 
 ## Running
@@ -104,8 +118,27 @@ As an example lets invoke `omb` with
 - use 2 threads, and the two cores, as specified by the runtime.
 
 ```shell
-OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb triad -kernel do:simd -it 10 -n 20MB
+$> OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb triad -kernel do:simd -it 10 -n 20MB
 ```
+The output will look something like this:
+```shell
+ triad do:simd 1 8   1.99999924E+01   5.18938001E-04   6.45935400E-04   1.15988655E-08   8.63896001E-04  37.63694799E+00   3.36769710E+00
+```
+The columns is described in this small box, `omb -h` will also show this information.
+| Short name | Description |
+| ---- | ------ |
+| `METHOD`        | name of the method running |
+| `KERNEL`        | which kernel used in `METHOD` |
+| `FIRST_TOUCH`   | 0 for master thread first-touch, 1 for distributed first-touch |
+| `ELEM_B`        | number of bytes per element in the array |
+| `MEM_MB`        | size of all allocated arrays, in MBytes |
+| `TIME_MIN`      | minimum runtime of iterations, in seconds |
+| `TIME_AVG`      | average runtime of iterations, in seconds |
+| `TIME_STD`      | Bessel corrected standard deviation of runtime, in seconds |
+| `TIME_MAX`      | maximum runtime of iterations, in seconds |
+| `BANDWIDTH_GBS` | maxmimum bandwidth in GBytes/s (using `TIME_MIN`) |
+| `GFLOPS`        | maxmimum FLOPS in G/s (using `TIME_MIN`) |
+
 
 ### Running the *driver*
 
@@ -140,7 +173,9 @@ OMP_PLACES=4,5,10 omb
 ```
 Note that by default it amends the output by prefixing with
 the placement of the threads as understood by `omb`, see
-note in the snippet above.
+note in the snippet above. So the output will have `OMP_NUM_THREADS`
+additional columns with the first columns describing each threads
+placement.
 
 If one does not wish to prefix with the placement id's of each
 thread on can call it as `omb-driver -Dwithout-place-info` to
