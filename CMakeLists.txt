@@ -6,6 +6,22 @@ set(CMAKE_USER_MAKE_RULES_OVERRIDE
 
 list(APPEND CMAKE_MESSAGE_CONTEXT omb)
 
+# Default the build-type to be of release
+set(CMAKE_BUILD_TYPE_INIT Release)
+# In order to access the STRINGS property, we have to denote
+# it a cache variable. Which it isn't by default.
+set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE_INIT}"
+  CACHE STRING "Choose the type of build")
+
+set_property(
+  CACHE CMAKE_BUILD_TYPE
+  PROPERTY
+    STRINGS
+      Release # optimal flags without using fast-math
+      Fast # optimal flags with using fast-math
+      Debug # only for debug purposes
+)
+
 project(omb
   LANGUAGES Fortran
   DESCRIPTION "OpenMP benchmarks in Fortran"
@@ -26,19 +42,14 @@ message(STATUS "
 ** PROJECT_NAME = ${PROJECT_NAME}
 ")
 
-# Default build-type
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build" FORCE)
-endif()
 
-if (NOT DEFINED CMAKE_Fortran_MODULE_DIRECTORY)
-  set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
-endif ()
+# Print-out information about the build-properties
+include(cmake/ombDefaultFlags.cmake)
+include(cmake/ombInfo.cmake)
 
 # Add project options
 include(cmake/ombFyppify.cmake)
 include(cmake/ombOptions.cmake)
-include(cmake/ombDefaultFlags.cmake)
 
 find_package(OpenMP REQUIRED
   COMPONENTS Fortran)
@@ -84,6 +95,7 @@ option(OMB_WITH_MPI "Install omb with MPI support" FALSE)
 if( OMB_WITH_MPI )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_MPI=1")
 endif()
+
 
 
 # Add the sources for the binary and drivers
