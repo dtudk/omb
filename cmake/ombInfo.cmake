@@ -1,5 +1,3 @@
-# Print out the discovered paths
-include(CMakePrintHelpers)
 
 # Build configuration details
 message(STATUS "System information")
@@ -9,11 +7,11 @@ cmake_print_variables(CMAKE_SYSTEM_PROCESSOR)
 cmake_print_variables(CMAKE_SYSTEM_VERSION)
 cmake_print_variables(CMAKE_LIBRARY_ARCHITECTURE)
 cmake_print_variables(CMAKE_OBJECT_PATH_MAX)
+cmake_print_variables(CMAKE_VERSION)
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 
 message(STATUS "Build configuration information")
 list(APPEND CMAKE_MESSAGE_INDENT "  ")
-cmake_print_variables(CMAKE_VERSION)
 cmake_print_variables(CMAKE_PREFIX_PATH)
 cmake_print_variables(CMAKE_BUILD_TYPE)
 cmake_print_variables(CMAKE_DEFAULT_BUILD_TYPE)
@@ -27,6 +25,7 @@ cmake_print_variables(CMAKE_INTERPROCEDURAL_OPTIMIZATION)
 cmake_print_variables(CMAKE_POSITION_INDEPENDENT_CODE)
 cmake_print_variables(CMAKE_BUILD_RPATH)
 cmake_print_variables(CMAKE_BUILD_WITH_INSTALL_RPATH)
+cmake_print_variables(COMPATIBILITY)
 if( APPLE )
   cmake_print_variables(APPLE)
   cmake_print_variables(CMAKE_OSX_ARCHITECTURES)

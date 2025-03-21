@@ -30,18 +30,17 @@ project(omb
 
 # Project installation follows GNU installation directory convention
 include(GNUInstallDirs)
+include(CMakePrintHelpers)
 
 # Export CMake package file
 include(CMakePackageConfigHelpers)
 
 # Define library specific content
-option(OMB_INSTALL  "Install omb (or use as sub-project)" ${PROJECT_IS_TOP_LEVEL})
 set(OMB_AUTHOR      "Nick Papior")
 set(OMB_DESCRIPTION "OpenMP benchmarks written in Fortran")
-message(STATUS "
-** PROJECT_NAME = ${PROJECT_NAME}
-")
 
+# Require API compatibility via semantic versioning for static linking.
+set(COMPATIBILITY SameMajorVersion)
 
 # Print-out information about the build-properties
 include(cmake/ombDefaultFlags.cmake)
@@ -56,13 +55,16 @@ find_package(OpenMP REQUIRED
 
 include(cmake/ombOpenMPOptions.cmake)
 
+find_package(MPI
+  COMPONENTS Fortran)
+
+option(OMB_INSTALL  "Install omb (or use as sub-project)" ${PROJECT_IS_TOP_LEVEL})
 
 # Now figure out how the tools should be used.
-set(OMB_INT_KIND "int64" CACHE STRING "Size of integers used in loop constructs (type
-named according to iso_fortran_env).")
+set(OMB_INT_KIND "int64" CACHE STRING
+  "Size of integers used in loop constructs (type named according to iso_fortran_env).")
 set_property(CACHE OMB_INT_KIND
   PROPERTY STRINGS int32 int64)
-message(STATUS "Loop integers will be declared using: ${OMB_INT_KIND}")
 
 # Append choice to fypp flags
 list(APPEND OMB_FYPP_FLAGS -DOMB_INT_KIND="'${OMB_INT_KIND}'")
@@ -72,7 +74,6 @@ set(OMB_ALLOC_TYPE "stack" CACHE STRING "How the arrays are constructed
 [allocatable, pointer, stack].")
 set_property(CACHE OMB_ALLOC_TYPE
   PROPERTY STRINGS allocatable pointer stack)
-message(STATUS "Arrays will be declared using: ${OMB_ALLOC_TYPE}")
 
 # Append choice to fypp flags
 list(APPEND OMB_FYPP_FLAGS -DOMB_ALLOC_TYPE="'${OMB_ALLOC_TYPE}'")
@@ -87,15 +88,26 @@ find_library(SysLib_rt
   DOC "The runtime library for extended timing precision."
 )
 
-
-find_package(MPI
-  COMPONENTS Fortran)
-
 option(OMB_WITH_MPI "Install omb with MPI support" FALSE)
 if( OMB_WITH_MPI )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_MPI=1")
 endif()
 
+
+message(STATUS "${PROJECT_NAME} options:")
+list(APPEND CMAKE_MESSAGE_INDENT "  ")
+
+message(STATUS "fypp executable: ${OMB_FYPP}")
+#message(STATUS "Install: ${OMB_INSTALL}")
+message(STATUS "Loop integers will be declared using: ${OMB_INT_KIND}")
+message(STATUS "Arrays will be declared using: ${OMB_ALLOC_TYPE}")
+list(APPEND CMAKE_MESSAGE_INDENT "  ")
+foreach(flag IN LISTS OMB_FYPP_FLAGS)
+  message(STATUS "${flag}")
+endforeach()
+list(POP_BACK CMAKE_MESSAGE_INDENT)
+
+list(POP_BACK CMAKE_MESSAGE_INDENT)
 
 
 # Add the sources for the binary and drivers
@@ -112,9 +124,6 @@ set(OMB_INSTALL_CMAKECONFIG_DIR
 )
 mark_as_advanced(OMB_INSTALL_CMAKECONFIG_DIR)
 
-
-# Require API compatibility via semantic versioning for static linking.
-set(COMPATIBILITY SameMajorVersion)
 
 
 # Export a cmake package configure file
