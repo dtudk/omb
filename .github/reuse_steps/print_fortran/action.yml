@@ -29,7 +29,7 @@ runs:
         exe=$(which $v 2>/dev/null)
         printf '\n\n%-10s : %s\n' "$v" "$exe"
         if [ -e "$exe" ]; then
-          echo "  --version: $($exe --version)"
+          "$exe" --version
           if [ -z "$fc" ]; then
             fc="$exe"
           fi
@@ -51,8 +51,9 @@ runs:
       set +e
       # FC defined? Quick escape if that is the case...
       [ -z "$FC" ] && exit 0
-      DIR=$(dirname $(which $FC))
+      DIR=$(dirname $(which "$FC"))
       echo "Found FC=$FC in: $DIR"
+
       # Apparently windows find is extremely slow, we'll just
       # skip this information...
       if [ "${{ steps.host.outputs.os }}" != "windows" ]; then

@@ -50,6 +50,7 @@ runs:
       if [ "${{ steps.host.outputs.os }}" == "windows" ]; then
         opts+=(
           -G "MinGW Makefiles"
+          -DFYPP="python utils/fypp"
         )
       fi
 
@@ -117,7 +118,7 @@ runs:
       fi
       system_name=Generic
 
-      opts=(${opts[@]}
+      opts+=(
 
         -DCMAKE_SYSTEM_NAME=$system_name
         -DCMAKE_SYSTEM_PROCESSOR=$processor

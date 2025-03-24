@@ -15,18 +15,18 @@ runs:
       # Set to none, then we will create it...
       cc=""
       names=(
+        cc
         gcc
         clang
         icx
         nvc
         icc
-        cc
       )
       for v in ${names[@]} ; do
         exe=$(which $v 2>/dev/null)
         printf '\n\n%-10s : %s\n' "$v" "$exe"
         if [ -e "$exe" ]; then
-          echo "  --version: $($exe --version)"
+          "$exe" --version
           if [ -z "$cc" ]; then
             cc="$exe"
           fi
@@ -45,8 +45,14 @@ runs:
       set +e
       # CC defined? Quick escape if that is the case...
       [ -z "$CC" ] && exit 0
-      DIR=$(dirname $(which $CC))
-      echo "Other found gcc in same binary dir:"
-      find $DIR -name "*gcc*"
-      echo "Other found clang in same binary dir:"
-      find $DIR -name "*clang*"
+      DIR=$(dirname $(which "$CC"))
+      echo "Found CC=$CC in: $DIR"
+
+      # Apparently windows find is extremely slow, we'll just
+      # skip this information...
+      if [ "${{ steps.host.outputs.os }}" != "windows" ]; then
+        echo "Other found gcc in same binary dir:"
+        find $DIR -name "*gcc*"
+        echo "Other found clang in same binary dir:"
+        find $DIR -name "*clang*"
+      fi
