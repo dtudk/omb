@@ -28,9 +28,22 @@ jobs:
         toolchain:
           - {compiler: gcc, version: 13}
           - {compiler: intel, version: '2025.0'}
+          # In principle there is an intel-classic 2021.12
+          # But that is not available on the Mac
           - {compiler: intel-classic, version: '2021.10'}
           - {compiler: nvidia-hpc, version: '25.1'}
           - {compiler: lfortran, version: '0.45.0'}
+        exclude:
+          - os: macos-12
+            toolchain: {compiler: intel}
+          - os: macos-latest
+            toolchain: {compiler: intel}
+          - os: macos-12
+            toolchain: {compiler: nvidia-hpc}
+          - os: macos-latest
+            toolchain: {compiler: nvidia-hpc}
+          - os: windows-latest
+            toolchain: {compiler: nvidia-hpc}
 
     steps:
 

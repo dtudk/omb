@@ -60,10 +60,13 @@ runs:
 
       # And test
       cd $obj
-      if [ -e ./omb ]; then
-        exe=omb
-      elif [ -e ./omb.exe ]; then
-        exe=omb.exe
+      # List all files in the obj-directory
+      ls -l
+      ls -l src
+      if [ -e ./src/omb ]; then
+        exe=src/omb
+      elif [ -e ./src/omb.exe ]; then
+        exe=src/omb.exe
       else
         echo "Unknown file extension..."
         exit 1
@@ -127,9 +130,9 @@ runs:
       cd $obj
       if [ "${{ steps.host.outputs.os }}" == "mac" ]; then
         # Check with otool how it looks like
-        otool -l ./$exe
+        otool -l ./src/$exe
       fi
 
       # We can't test, check it fails when running
-      ./omb && exit 1 || exit 0
+      ./src/omb && exit 1 || exit 0
     if: ${{ inputs.arm == 'true' }}
