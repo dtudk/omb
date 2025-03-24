@@ -1,0 +1,135 @@
+name: Build and test
+
+inputs:
+  arm:  # id of input
+    description: 'Also build for arm64, if not native?'
+    required: false
+    default: 'false'
+  osx_sdk:  # id of input
+    description: 'Which SDK version for the OSX build?'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+
+  - id: host
+    uses: ./.github/reuse_steps/print_host
+  - uses: ./.github/reuse_steps/print_compiler
+  - id: fc
+    # this is to get the env-vars from the output
+    # Could perhaps be removed
+    uses: ./.github/reuse_steps/print_fortran
+
+  - name: Intrinsic build
+    shell: bash -el {0}
+    run: |
+      obj=obj_host
+      # clean the build directory, in case this is a double build
+      rm -rf $obj
+
+      # Just to be sure it is the same as prior steps
+      echo FC=$FC
+      if [ -z "$FC" ]; then
+        echo "Ensuring FC=${{ steps.fc.outputs.fc }}"
+        export FC=${{ steps.fc.outputs.fc }}
+      fi
+
+      if [ -n "${{ inputs.osx_sdk }}" ]; then
+        echo "Specifying deployment target to ${{ inputs.osx_sdk }}"
+        export MACOSX_DEPLOYMENT_TARGET="${{ inputs.osx_sdk }}"
+      fi
+
+      opts=(
+        --log-level=debug
+        --log-context
+        -DCMAKE_RULE_MESSAGES:BOOL=OFF
+        -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+      )
+      if [ "${{ steps.host.outputs.os }}" == "windows" ]; then
+        opts+=(
+          -G "MinGW Makefiles"
+        )
+      fi
+
+      echo "CMake invocation:"
+      echo " cmake ${opts[@]} -S. B$obj"
+      cmake "${opts[@]}" -S. -B$obj
+      cmake --build $obj
+
+      # And test
+      cd $obj
+      if [ -e ./omb ]; then
+        exe=omb
+      elif [ -e ./omb.exe ]; then
+        exe=omb.exe
+      else
+        echo "Unknown file extension..."
+        exit 1
+      fi
+      ./$exe
+
+      if [ "${{ steps.host.outputs.os }}" == "mac" ]; then
+        # Check with otool how it looks like
+        otool -l ./$exe
+      fi
+
+  # Inspired by:
+  # https://github.com/vpetrigo/arm-cmake-toolchains/blob/master/arm-gcc-toolchain.cmake
+  - name: Crosscompile for arm64
+    shell: bash -el {0}
+    run: |
+      obj=obj_arm64
+      rm -rf $obj
+
+      # Just to be sure it is the same as prior steps
+      echo FC=$FC
+      if [ -z "$FC" ]; then
+        echo "Ensuring FC=${{ steps.fc.outputs.fc }}"
+        export FC=${{ steps.fc.outputs.fc }}
+      fi
+
+      opts=(
+        --log-level=debug
+        --log-context
+        -DCMAKE_RULE_MESSAGES:BOOL=OFF
+        -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+      )
+
+      [ "${{ steps.host.outputs.processor }}" == "arm" ] && exit 0
+
+      if [[ $(uname) == "Darwin" ]]; then
+        system_name=Darwin
+        processor=ARM
+        opts=(${opts[@]}
+          -DCMAKE_OSX_ARCHITECHTURES=arm64
+        )
+      elif [[ $(uname) == "Linux" ]]; then
+        system_name=Linux
+        processor=ARM
+      else
+        system_name=Windows
+        processor=ARM
+      fi
+      system_name=Generic
+
+      opts=(${opts[@]}
+
+        -DCMAKE_SYSTEM_NAME=$system_name
+        -DCMAKE_SYSTEM_PROCESSOR=$processor
+      )
+      echo "CMake invocation:"
+      echo " cmake ${opts[@]} -S. B$obj"
+      cmake "${opts[@]}" -S. -B$obj
+      cmake --build $obj
+
+      cd $obj
+      if [ "${{ steps.host.outputs.os }}" == "mac" ]; then
+        # Check with otool how it looks like
+        otool -l ./$exe
+      fi
+
+      # We can't test, check it fails when running
+      ./omb && exit 1 || exit 0
+    if: ${{ inputs.arm == 'true' }}

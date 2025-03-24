@@ -1,0 +1,41 @@
+name: Host info
+
+outputs:
+  os:
+    description: "The operating system we are working on"
+    value: ${{ steps.detect.outputs.os }}
+  processor:
+    description: "The processor used"
+    value: ${{ steps.detect.outputs.processor }}
+
+
+runs:
+  using: "composite"
+  steps:
+  - id: detect
+    shell: bash -el {0}
+    run: |
+      # unset options -e
+      set +e
+      uname -a
+      env
+
+      if [[ $(uname) == "Darwin" ]]; then
+        echo "os=mac" >> $GITHUB_OUTPUT
+      elif [[ $(uname) == "Linux" ]]; then
+        echo "os=linux" >> $GITHUB_OUTPUT
+      else
+        echo "os=windows" >> $GITHUB_OUTPUT
+      fi
+
+      if [[ $(uname -m) == "aarch64*" ]]; then
+        echo "processor=arm" >> $GITHUB_OUTPUT
+      elif [[ $(uname -m) == "arm*" ]]; then
+        echo "processor=arm" >> $GITHUB_OUTPUT
+      else
+        echo "processor=x86_64" >> $GITHUB_OUTPUT
+      fi
+
+      # Show the path
+      echo "Showing the PATH="
+      echo "$PATH"

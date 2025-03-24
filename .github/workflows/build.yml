@@ -1,0 +1,56 @@
+name: "Build"
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  define-matrix:
+    runs-on: ubuntu-latest
+
+    outputs:
+      os: ${{ steps.os.outputs.os }}
+
+    steps:
+      - name: Define OS
+        id: os
+        run: |
+          echo 'os=["ubuntu-latest", "macos-12", "macos-latest", "windows-latest"]' >> "$GITHUB_OUTPUT"
+
+  setup_fortran:
+    name: setup_fortran
+    needs: define-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.define-matrix.outputs.os) }}
+        toolchain:
+          - {compiler: gcc, version: 13}
+          - {compiler: intel, version: '2025.0'}
+          - {compiler: intel-classic, version: '2021.10'}
+          - {compiler: nvidia-hpc, version: '25.1'}
+          - {compiler: lfortran, version: '0.45.0'}
+
+    steps:
+
+      - uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+          compiler: ${{ matrix.toolchain.compiler }}
+          version: ${{ matrix.toolchain.version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: ./.github/reuse_steps/print_host
+      - uses: ./.github/reuse_steps/print_compiler
+
+      - uses: ./.github/reuse_steps/build_omb
+        with:
+          osx_sdk: 12.0
+
+      - if: startsWith(matrix.os, 'macos')
+        uses: ./.github/reuse_steps/build_omb
+        with:
+          osx_sdk: 13.0

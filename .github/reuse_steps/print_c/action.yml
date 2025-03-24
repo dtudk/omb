@@ -1,0 +1,52 @@
+name: C compiler info
+
+outputs:
+  cc:
+    description: "The default compiler that is available"
+    value: ${{ steps.detect.outputs.cc }}
+
+runs:
+  using: "composite"
+  steps:
+  - shell: bash -el {0}
+    run: |
+      # unset options -e
+      set +e
+      # Set to none, then we will create it...
+      cc=""
+      names=(
+        gcc
+        clang
+        icx
+        nvc
+        icc
+        cc
+      )
+      for v in ${names[@]} ; do
+        exe=$(which $v 2>/dev/null)
+        printf '\n\n%-10s : %s\n' "$v" "$exe"
+        if [ -e "$exe" ]; then
+          echo "  --version: $($exe --version)"
+          if [ -z "$cc" ]; then
+            cc="$exe"
+          fi
+        fi
+      done
+      echo "cc='$cc'" >> $GITHUB_OUTPUT
+
+  - shell: bash -el {0}
+    run: |
+      echo CC=$CC
+      echo CFLAGS=$CFLAGS
+
+  - shell: bash -el {0}
+    run: |
+      # unset options -e
+      set +e
+      # CC defined? Quick escape if that is the case...
+      [ -z "$CC" ] && exit 0
+      DIR=$(dirname $(which $CC))
+      echo "Other found gcc in same binary dir:"
+      find $DIR -name "*gcc*"
+      echo "Other found clang in same binary dir:"
+      find $DIR -name "*clang*"

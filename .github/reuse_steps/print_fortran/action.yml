@@ -1,0 +1,58 @@
+name: fortran compiler info
+
+outputs:
+  fc:
+    description: "The default compiler that is available"
+    value: ${{ steps.detect.outputs.fc }}
+
+runs:
+  using: "composite"
+  steps:
+  - id: host
+    uses: ./.github/reuse_steps/print_host
+
+  - shell: bash -el {0}
+    run: |
+      set +e
+      # Set to none, then we will create it...
+      fc=""
+      names=(
+        gfortran
+        ifx
+        flang
+        nvfortran
+        lfortran
+        ifort
+        f95
+      )
+      for v in ${names[@]} ; do
+        exe=$(which $v 2>/dev/null)
+        printf '\n\n%-10s : %s\n' "$v" "$exe"
+        if [ -e "$exe" ]; then
+          echo "  --version: $($exe --version)"
+          if [ -z "$fc" ]; then
+            fc="$exe"
+          fi
+          if [ "${{ steps.host.outputs.os }}" == "mac" ]; then
+            otool -l "$exe"
+          fi
+        fi
+      done
+      echo "fc='$fc'" >> $GITHUB_OUTPUT
+
+  - shell: bash -el {0}
+    run: |
+      echo FC=$FC
+      echo FFLAGS=$FFLAGS
+
+  - shell: bash -el {0}
+    run: |
+      # unset options -e
+      set +e
+      # FC defined? Quick escape if that is the case...
+      [ -z "$FC" ] && exit 0
+      DIR=$(dirname $(which $FC))
+      echo "Other found gfortran in same binary dir:"
+      find $DIR -name "*gfortran*"
+      echo "Other found flang in same binary dir:"
+      find $DIR -name "*flang*"
