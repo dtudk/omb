@@ -56,7 +56,7 @@ list(APPEND CMAKE_MESSAGE_INDENT "  ")
 # Whether we should use the iso_fortran_env for data-types
 
 CHECK_START("* has iso_fortran_env")
-# Check that it iso_fortran_env works
+# Check that iso_fortran_env is present
 set(source "
 use, intrinsic :: iso_fortran_env, only : real64, int32, real128
 real(real64) :: x
@@ -67,19 +67,16 @@ CHECK_PASS_FAIL( f_iso_fortran_env REQUIRED)
 
 
 CHECK_START("* has CONTIGUOUS")
-# Check that it iso_fortran_env works
+# Check that the contiguous attribute works
 set(source "
 real, pointer, contiguous :: x(:)
 end")
 check_fortran_source_compiles("${source}" f_contiguous SRC_EXT f90)
-CHECK_PASS_FAIL( f_contiguous REQUIRED)
-
-if( error_fortran )
-  message(FATAL_ERROR "Some fortran features are not available, please select another compiler")
-endif()
+CHECK_PASS_FAIL( f_contiguous )
 
 
 CHECK_START("* has OOP")
+# Check that object oriented programming is functional
 set(source "
 type :: options_t
 end type

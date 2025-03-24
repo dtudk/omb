@@ -32,12 +32,20 @@ jobs:
           # But that is not available on the Mac
           - {compiler: intel-classic, version: '2021.10'}
           - {compiler: nvidia-hpc, version: '25.1'}
-          - {compiler: lfortran, version: '0.45.0'}
+          # lfortran does not allow contiguous, so we'll skip it for now.
+          #- {compiler: lfortran, version: '0.45.0'}
+
         exclude:
+          # The classic intel compiler does not have the `loop`
+          # construct. Until we can programmatically disable this
+          # we have to disable it.
+          - toolchain: {compiler: intel-classic}
           - os: macos-12
             toolchain: {compiler: intel}
           - os: macos-latest
             toolchain: {compiler: intel}
+
+          # NVIDIA HPC SDK only available on Linux
           - os: macos-12
             toolchain: {compiler: nvidia-hpc}
           - os: macos-latest
@@ -55,9 +63,6 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - uses: ./.github/reuse_steps/print_host
-      - uses: ./.github/reuse_steps/print_compiler
 
       - uses: ./.github/reuse_steps/build_omb
         with:

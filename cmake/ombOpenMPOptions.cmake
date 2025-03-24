@@ -78,8 +78,24 @@ else()
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_MASKED=\"'master'\"")
 endif()
 
+CHECK_START("* has loop construct")
+set(source "
+real :: a(100)
+integer :: i
+!$omp parallel shared(a)
+!$omp loop private(i)
+do i = 1, 100
+   a(i) = i
+end do
+!$omp end loop
+!$omp end parallel
+print *, a(1)
+end")
+check_fortran_source_compiles("${source}" f_omp_loop SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_loop REQUIRED )
+
 
 if( error_fortran )
-  message(FATAL_ERROR "Some fortran features are not available, please select another compiler")
+  message(FATAL_ERROR "Some OpenMP fortran features are not available, please select another compiler")
 endif()
 list(POP_BACK CMAKE_MESSAGE_INDENT)

@@ -17,13 +17,13 @@ runs:
       # Set to none, then we will create it...
       fc=""
       names=(
+        f95
         gfortran
         ifx
         flang
         nvfortran
         lfortran
         ifort
-        f95
       )
       for v in ${names[@]} ; do
         exe=$(which $v 2>/dev/null)
@@ -52,7 +52,12 @@ runs:
       # FC defined? Quick escape if that is the case...
       [ -z "$FC" ] && exit 0
       DIR=$(dirname $(which $FC))
-      echo "Other found gfortran in same binary dir:"
-      find $DIR -name "*gfortran*"
-      echo "Other found flang in same binary dir:"
-      find $DIR -name "*flang*"
+      echo "Found FC=$FC in: $DIR"
+      # Apparently windows find is extremely slow, we'll just
+      # skip this information...
+      if [ "${{ steps.host.outputs.os }}" != "windows" ]; then
+        echo "Other found gfortran in same binary dir:"
+        find $DIR -name "*gfortran*"
+        echo "Other found flang in same binary dir:"
+        find $DIR -name "*flang*"
+      fi
