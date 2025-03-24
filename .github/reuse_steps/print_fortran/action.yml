@@ -1,4 +1,5 @@
 name: fortran compiler info
+      echo "<<< START OF ENV >>>"
 
 on:
   workflow_call:
@@ -15,9 +16,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-  - id: host
-    uses: ./.github/reuse_steps/print_host
-
   - shell: bash -el {0}
     run: |
       set +e
@@ -40,7 +38,7 @@ runs:
           if [ -z "$fc" ]; then
             fc="$exe"
           fi
-          if [ "${{ steps.host.outputs.os }}" == "mac" ]; then
+          if [ "${{ inputs.os }}" == "mac" ]; then
             otool -l "$exe"
           fi
         fi

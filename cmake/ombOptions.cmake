@@ -8,10 +8,10 @@ include(CheckFortranSourceRuns)
 # Ensure we have the program fypp installed
 find_program(OMB_FYPP fypp
   HINTS "${PROJECT_SOURCE_DIR}/utils"
+  DOC
+    "A fortran pre-processor required for building the source code before compilation."
+  REQUIRED
   )
-if(NOT OMB_FYPP)
-  message(FATAL_ERROR "Could not find executable fypp -- it is required for the pre-processing step")
-endif()
 
 # Internal variable to signal a problem of, some sort, then we can run through them
 # all, then break

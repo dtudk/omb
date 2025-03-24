@@ -55,7 +55,7 @@ runs:
       if [ "${{ steps.host.outputs.os }}" == "windows" ]; then
         opts+=(
           -G "MinGW Makefiles"
-          -DFYPP="python utils/fypp"
+          -DOMB_FYPP="python ./utils/fypp"
         )
       fi
 
@@ -108,13 +108,13 @@ runs:
 
       [ "${{ steps.host.outputs.processor }}" == "arm" ] && exit 0
 
-      if [[ $(uname) == "Darwin" ]]; then
+      if [[ "${{ steps.host.outputs.os }}" == "mac" ]]; then
         system_name=Darwin
         processor=ARM
-        opts=(${opts[@]}
+        opts+=(
           -DCMAKE_OSX_ARCHITECHTURES=arm64
         )
-      elif [[ $(uname) == "Linux" ]]; then
+      elif [[ "${{ steps.host.outputs.os }}" == "linux" ]]; then
         system_name=Linux
         processor=ARM
       else

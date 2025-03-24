@@ -37,6 +37,9 @@ runs:
           if [ -z "$cxx" ]; then
             cxx="$exe"
           fi
+          if [ "${{ inputs.os }}" == "mac" ]; then
+            otool -l "$exe"
+          fi
         fi
       done
       echo "cxx='$cxx'" >> $GITHUB_OUTPUT
