@@ -17,22 +17,32 @@ runs:
     run: |
       # unset options -e
       set +e
+      echo "Show uname -a output:"
       uname -a
+
+      echo "<<< START OF ENV >>>"
       env
+      echo "<<< END OF ENV >>>"
 
       if [[ $(uname) == "Darwin" ]]; then
+        echo "Found uname == Darwin"
         echo "os=mac" >> $GITHUB_OUTPUT
       elif [[ $(uname) == "Linux" ]]; then
+        echo "Found uname == Linux"
         echo "os=linux" >> $GITHUB_OUTPUT
       else
+        echo "Guessing uname == Windows"
         echo "os=windows" >> $GITHUB_OUTPUT
       fi
 
       if [[ $(uname -m) == "aarch64*" ]]; then
+        echo "Found uname -m == aarch64* (arm)"
         echo "processor=arm" >> $GITHUB_OUTPUT
       elif [[ $(uname -m) == "arm*" ]]; then
+        echo "Found uname -m == arm* (arm)"
         echo "processor=arm" >> $GITHUB_OUTPUT
       else
+        echo "Guessing uname -m == x86_64"
         echo "processor=x86_64" >> $GITHUB_OUTPUT
       fi
 

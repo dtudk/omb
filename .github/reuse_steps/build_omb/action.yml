@@ -17,10 +17,15 @@ runs:
   - id: host
     uses: ./.github/reuse_steps/print_host
   - uses: ./.github/reuse_steps/print_compiler
+    with:
+      os: ${{ steps.host.outputs.os }}
+
   - id: fc
     # this is to get the env-vars from the output
     # Could perhaps be removed
     uses: ./.github/reuse_steps/print_fortran
+    with:
+      os: ${{ steps.host.outputs.os }}
 
   - name: Intrinsic build
     shell: bash -el {0}

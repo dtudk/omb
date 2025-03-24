@@ -1,5 +1,12 @@
 name: C++ compiler info
 
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
 outputs:
   cxx:
     description: "The default compiler that is available"
@@ -50,7 +57,7 @@ runs:
 
       # Apparently windows find is extremely slow, we'll just
       # skip this information...
-      if [ "${{ steps.host.outputs.os }}" != "windows" ]; then
+      if [ "${{ inputs.os }}" != "windows" ]; then
         echo "Other found g++ in same binary dir:"
         find $DIR -name "g++*"
         echo "Other found clang++ in same binary dir:"
