@@ -57,13 +57,19 @@ include(cmake/ombChecks.cmake)
 include(cmake/ombFyppify.cmake)
 include(cmake/ombOptions.cmake)
 
-find_package(OpenMP REQUIRED
-  COMPONENTS Fortran)
+find_package(OpenMP
+  COMPONENTS Fortran
+  REQUIRED
+)
 
 include(cmake/ombOpenMPOptions.cmake)
 
 find_package(MPI
-  COMPONENTS Fortran)
+  COMPONENTS Fortran
+)
+if( MPI_Fortran_FOUND )
+  include(cmake/ombMPIOptions.cmake)
+endif()
 
 option(OMB_INSTALL  "Install omb (or use as sub-project)" ${PROJECT_IS_TOP_LEVEL})
 
