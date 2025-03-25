@@ -53,7 +53,11 @@ jobs:
           - os: windows-latest
             toolchain: {compiler: nvidia-hpc}
 
-    steps:
+          # Currently the flags are not converted to intel arguments
+          - os: windows-latest
+            toolchain: {compiler: intel}
+
+      steps:
 
       - uses: fortran-lang/setup-fortran@v1
         id: setup-fortran

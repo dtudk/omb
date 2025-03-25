@@ -3,7 +3,10 @@
 # For now it is at the top-level (for user clarity)
 
 # This code segments relies on OpenMP
-set(CMAKE_REQUIRED_LIBRARIES OpenMP::OpenMP_Fortran)
+cmake_push_check_state()
+
+# Append to the list of libraries required to compile the test sources
+list(APPEND CMAKE_REQUIRED_LIBRARIES OpenMP::OpenMP_Fortran)
 
 message(STATUS "Checking OpenMP fortran features")
 list(APPEND CMAKE_MESSAGE_INDENT "  ")
@@ -95,7 +98,8 @@ check_fortran_source_compiles("${source}" f_omp_loop SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_loop REQUIRED )
 
 
-if( error_fortran )
+if( error_omb )
   message(FATAL_ERROR "Some OpenMP fortran features are not available, please select another compiler")
 endif()
 list(POP_BACK CMAKE_MESSAGE_INDENT)
+cmake_pop_check_state()

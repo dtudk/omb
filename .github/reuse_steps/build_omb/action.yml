@@ -55,7 +55,6 @@ runs:
       if [ "${{ steps.host.outputs.os }}" == "windows" ]; then
         opts+=(
           -G "MinGW Makefiles"
-          -DOMB_FYPP="python ./utils/fypp"
         )
       fi
 

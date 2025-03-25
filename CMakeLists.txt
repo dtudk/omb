@@ -34,6 +34,12 @@ include(CMakePrintHelpers)
 
 # Export CMake package file
 include(CMakePackageConfigHelpers)
+include(CMakePushCheckState)
+
+# Initialize the check-state
+# We don't reset, in case a parent project wishes to push down
+# variables
+cmake_push_check_state()
 
 # Define library specific content
 set(OMB_AUTHOR      "Nick Papior")
@@ -47,6 +53,7 @@ include(cmake/ombDefaultFlags.cmake)
 include(cmake/ombInfo.cmake)
 
 # Add project options
+include(cmake/ombChecks.cmake)
 include(cmake/ombFyppify.cmake)
 include(cmake/ombOptions.cmake)
 
@@ -97,7 +104,6 @@ endif()
 message(STATUS "${PROJECT_NAME} options:")
 list(APPEND CMAKE_MESSAGE_INDENT "  ")
 
-message(STATUS "fypp executable: ${OMB_FYPP}")
 #message(STATUS "Install: ${OMB_INSTALL}")
 message(STATUS "Loop integers will be declared using: ${OMB_INT_KIND}")
 message(STATUS "Arrays will be declared using: ${OMB_ALLOC_TYPE}")
@@ -170,3 +176,7 @@ export(
 )
 
 list(POP_BACK CMAKE_MESSAGE_CONTEXT)
+
+# Restore the original state
+# in case we are in a sub-project
+cmake_pop_check_state()
