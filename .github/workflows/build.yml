@@ -57,7 +57,7 @@ jobs:
           - os: windows-latest
             toolchain: {compiler: intel}
 
-      steps:
+    steps:
 
       - uses: fortran-lang/setup-fortran@v1
         id: setup-fortran
