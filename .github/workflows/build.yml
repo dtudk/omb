@@ -40,13 +40,13 @@ jobs:
           # construct. Until we can programmatically disable this
           # we have to disable it.
           - toolchain: {compiler: intel-classic}
-          - os: macos-12
+          - os: macos-13
             toolchain: {compiler: intel}
           - os: macos-latest
             toolchain: {compiler: intel}
 
           # NVIDIA HPC SDK only available on Linux
-          - os: macos-12
+          - os: macos-13
             toolchain: {compiler: nvidia-hpc}
           - os: macos-latest
             toolchain: {compiler: nvidia-hpc}
