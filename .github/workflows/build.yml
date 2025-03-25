@@ -15,7 +15,7 @@ jobs:
       - name: Define OS
         id: os
         run: |
-          echo 'os=["ubuntu-latest", "macos-12", "macos-latest", "windows-latest"]' >> "$GITHUB_OUTPUT"
+          echo 'os=["ubuntu-latest", "macos-13", "macos-latest", "windows-latest"]' >> "$GITHUB_OUTPUT"
 
   setup_fortran:
     name: setup_fortran
