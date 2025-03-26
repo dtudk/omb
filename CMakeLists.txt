@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
+# IntelLLVM was introduced in 3.20
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
 # Include overwrites before setting up the project
 set(CMAKE_USER_MAKE_RULES_OVERRIDE
@@ -67,8 +68,15 @@ include(cmake/ombOpenMPOptions.cmake)
 find_package(MPI
   COMPONENTS Fortran
 )
-if( MPI_Fortran_FOUND )
-  include(cmake/ombMPIOptions.cmake)
+
+option(OMB_WITH_MPI "Install omb with MPI support" FALSE)
+if( OMB_WITH_MPI )
+  if( MPI_Fortran_FOUND )
+    include(cmake/ombMPIOptions.cmake)
+  else()
+    message(FATAL_ERROR "The fortran MPI library is not found...")
+  endif()
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_MPI=1")
 endif()
 
 option(OMB_INSTALL  "Install omb (or use as sub-project)" ${PROJECT_IS_TOP_LEVEL})
@@ -100,11 +108,6 @@ find_library(SysLib_rt
   rt
   DOC "The runtime library for extended timing precision."
 )
-
-option(OMB_WITH_MPI "Install omb with MPI support" FALSE)
-if( OMB_WITH_MPI )
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_MPI=1")
-endif()
 
 
 message(STATUS "${PROJECT_NAME} options:")
