@@ -15,11 +15,16 @@ module timing_m
    public :: timing_initialize
    public :: timing_get_sys_rate
    public :: timing_get_sys_max
+   public :: timing_get_sys_tick
 
    type, public :: timing_t
 
       real(real64) :: time
-      real(real64), private :: t0
+      #:if defined("OMB_TIMING_SYSTEM_CLOCK")
+         integer(int64), private :: t0
+      #:else
+         real(real64), private :: t0
+      #:endif
 
    contains
 
@@ -44,25 +49,42 @@ contains
       rate = count_rate
    end function
 
+   function timing_get_sys_tick() result(rate)
+      real(real64) :: rate
+      rate = 1._real64/real(count_rate, real64)
+   end function
+
    function timing_get_sys_max() result(ma)
       integer(int64) :: ma
       ma = count_max
    end function
 
    subroutine start(timing)
-!$    use omp_lib, only: omp_get_wtime
+      use omp_lib, only: omp_get_wtime
       class(timing_t), intent(inout) :: timing
 
-!$    timing%t0 = omp_get_wtime()
+      #:if defined("OMB_TIMING_SYSTEM_CLOCK")
+         call system_clock(count=timing%t0)
+      #:else
+         timing%t0 = omp_get_wtime()
+      #:endif
 
    end subroutine start
 
    subroutine stop(timing, store)
-!$    use omp_lib, only: omp_get_wtime
+      use omp_lib, only: omp_get_wtime
       class(timing_t), intent(inout) :: timing
       real(real64), intent(out), optional :: store
+      #:if defined("OMB_TIMING_SYSTEM_CLOCK")
+         integer(int64) :: t1
+      #:endif
 
-!$    timing%time = omp_get_wtime() - timing%t0
+      #:if defined("OMB_TIMING_SYSTEM_CLOCK")
+         call system_clock(count=t1)
+         timing%time = (t1 - timing%t0)/real(count_rate, real64)
+      #:else
+         timing%time = omp_get_wtime() - timing%t0
+      #:endif
 
       if (present(store)) then
          store = timing%time

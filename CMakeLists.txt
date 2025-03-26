@@ -100,6 +100,26 @@ set_property(CACHE OMB_ALLOC_TYPE
 list(APPEND OMB_FYPP_FLAGS -DOMB_ALLOC_TYPE="'${OMB_ALLOC_TYPE}'")
 
 
+# Now figure out how the tools should be used.
+set(OMB_TIMING "omp" CACHE STRING
+  "Which method to time the benchmarks with [omp,systemclock].")
+set_property(CACHE OMB_TIMING
+  PROPERTY STRINGS omp systemclock)
+
+string(TOUPPER "${OMB_TIMING}" omb_timing_upper)
+# Remove underscore, allows system_clock
+string(REPLACE "_" "" omb_timing_upper "${omb_timing_upper}")
+if( "${omb_timing_upper}" STREQUAL "SYSTEMCLOCK" )
+  list(APPEND OMB_FYPP_FLAGS -DOMB_TIMING_SYSTEM_CLOCK)
+elseif( "${omb_timing_upper}" STREQUAL "OMP" )
+  # pass
+else()
+  message(FATAL_ERROR "OMB_TIMING not one of omp|systemclock
+
+  Got OMB_TIMING='${OMB_TIMING}'!")
+endif()
+
+
 # Generally we do not need the rt library.
 # However, it should provide extended runtime precision for timers.
 # For GCC this is implicitly linked when using OpenMP.
@@ -116,6 +136,7 @@ list(APPEND CMAKE_MESSAGE_INDENT "  ")
 #message(STATUS "Install: ${OMB_INSTALL}")
 message(STATUS "Loop integers will be declared using: ${OMB_INT_KIND}")
 message(STATUS "Arrays will be declared using: ${OMB_ALLOC_TYPE}")
+message(STATUS "Timing benchmarks will use: ${OMB_TIMING}")
 list(APPEND CMAKE_MESSAGE_INDENT "  ")
 foreach(flag IN LISTS OMB_FYPP_FLAGS)
   message(STATUS "${flag}")

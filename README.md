@@ -76,6 +76,23 @@ formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
     allocate(a(N))
     ```
 
+- `OMB_TIMING`
+  By default, `omb` will use the OpenMP library timing routines.
+  However, one can selectively use the fortran intrinsics (`system_clock`).
+
+  Please compile `omb`, then run `omb -env` and check the timing precision
+  of both, they are typically the same precision, then select the one with
+  the highest precision (smallest number).
+
+  - `omp` (default)
+
+    Use the OpenMP library `omp_get_wtime`
+
+  - `systemclock`
+
+    Use the fortran instrinsic `system_clock`.
+
+
 
 ## Running
 

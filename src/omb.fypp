@@ -18,8 +18,7 @@ program main
    ! to give same results for C/C++.
    ! Generally, the OpenMP implementation is a bit
    ! behind for fortran compilers.
-   use timing_m, only: timing_initialize, timing_get_sys_rate
-   use timing_m, only: timing_get_sys_max
+   use timing_m, only: timing_initialize
    use options_m
    use results_m, only: results_t
    use info_omp_m, only: info_env_t
@@ -845,10 +844,13 @@ contains
       write (OUTPUT_UNIT, fmt_nl) "runs the axpy code, using 3 arrays totalling 2MB of memory."
 
       write (OUTPUT_UNIT, fmt_nl)
-    write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -first-touch master -kernel taskloop,32 -dtype 32 -n 2GB triad -it 200 -warmup 2"
+      write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -first-touch master " &
+         &"-kernel taskloop,32 -dtype 32 -n 2GB triad -it 200 -warmup 2"
       write (OUTPUT_UNIT, fmt_nl)
-write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
-      write (OUTPUT_UNIT, fmt_nl) "running 2 warmup iterations, then 200 iterations, with serial first-touch of the arrays."
+      write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, " &
+         &"num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
+      write (OUTPUT_UNIT, fmt_nl) "running 2 warmup iterations, then 200 iterations, " &
+         &"with serial first-touch of the arrays."
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl)

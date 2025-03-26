@@ -8,6 +8,7 @@ omb_fyppify(
     results.fypp
     info_omp.fypp
     omb.fypp
+    timing.fypp
   OUTPUT omb_fypp_sources
 )
 
@@ -16,7 +17,6 @@ omb_fyppify(
 add_executable(
   omb
   ${omb_fypp_sources}
-  timing.f90
   )
 
 target_link_libraries(

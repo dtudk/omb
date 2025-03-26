@@ -37,6 +37,8 @@ module info_omp_m
    character(len=*), parameter :: FMT_OMB_A = "('omb ',a,t40,':',tr1,a)"
    character(len=*), parameter :: FMT_SYS_I = "('sys ',a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_SYS_A = "('sys ',a,t40,':',tr1,a)"
+   character(len=*), parameter :: FMT_SYS_E = "('sys ',a,t40,':',256(tr1,e0.10))"
+   character(len=*), parameter :: FMT_SYS_ES = "('sys ',a,t40,':',256(tr1,es0.10))"
    character(len=*), parameter :: FMT_I = "('omp ',a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_DA = "('omp ',a,t40,':',tr1,f0.10,tr1,a)"
    character(len=*), parameter :: FMT_T_DA = "('omp ','[',i0,']',tr1,a,t40,':',tr1,f0.10,tr1,a)"
@@ -59,7 +61,9 @@ contains
 
    subroutine print_info_sys()
 
+      use omp_lib, only: omp_get_wtick
       use timing_m, only: timing_get_sys_rate
+      use timing_m, only: timing_get_sys_tick
       use timing_m, only: timing_get_sys_max
 
       write (OUTPUT_UNIT, FMT_OMB_A) "alloc_type", "${OMB_ALLOC_TYPE}$"
@@ -67,7 +71,9 @@ contains
 
       ! Generic system information
       write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_rate", timing_get_sys_rate()
+      write (OUTPUT_UNIT, FMT_SYS_ES) "system_clock_rate [ns]", timing_get_sys_tick()*1e9
       write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_max", timing_get_sys_max()
+      write (OUTPUT_UNIT, FMT_SYS_ES) "get_wtick [ns]", omp_get_wtick()*1e9
 
    end subroutine
 
