@@ -845,12 +845,12 @@ contains
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -first-touch master " &
-         &"-kernel taskloop,32 -dtype 32 -n 2GB triad -it 200 -warmup 2"
+         &//"-kernel taskloop,32 -dtype 32 -n 2GB triad -it 200 -warmup 2"
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, " &
-         &"num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
+         &//"num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
       write (OUTPUT_UNIT, fmt_nl) "running 2 warmup iterations, then 200 iterations, " &
-         &"with serial first-touch of the arrays."
+         &//"with serial first-touch of the arrays."
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl)
