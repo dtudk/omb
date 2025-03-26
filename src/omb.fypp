@@ -155,6 +155,10 @@ program main
                allocate (option_kernel_teams_distribute_t::options%kernel)
             case ("teams:parallel")
                allocate (option_kernel_teams_parallel_t::options%kernel)
+            case default
+               write (ERROR_UNIT, *) "The requested kernel does not exist?"
+               write (ERROR_UNIT, *) " -kernel ", trim(arg)
+               stop 4
             end select
 
             select type (kernel => options%kernel)
@@ -264,6 +268,10 @@ program main
             call read_and_check_next_arg(iarg, arg)
 
             read (arg, *) options%warmup_it
+            if (options%warmup_it < 1) then
+               write (ERROR_UNIT, *) "The number of warmup iterations *must* be 1 or more."
+               stop 4
+            end if
 
          case ("-it", "--it")
 
@@ -278,6 +286,10 @@ program main
             call read_and_check_next_arg(iarg, arg)
 
             read (arg, *) options%it
+            if (options%it < 1) then
+               write (ERROR_UNIT, *) "The number of iterations must be larger than 0!"
+               stop 4
+            end if
 
          case ("-n", "--n", "-s", "--size")
 
@@ -289,6 +301,7 @@ program main
             ! Read next arg
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
+
             ! Lower-case it (so kb == KB == kB).
             arg = lcase(trim(arg))
 
@@ -329,6 +342,10 @@ program main
             call read_and_check_next_arg(iarg, arg)
 
             read (arg, *) options%offset
+            if (options%offset < 0) then
+               write (ERROR_UNIT, *) "The offset between arrays *must* be a positive number"
+               stop 4
+            end if
 
          case ("norun", "-dryrun", "--dryrun")
 
@@ -413,7 +430,7 @@ program main
 
    ! Store in safety variable
    ! This will be the number of elements *per array*
-   big_n = nint(bytes*8/(elem_bits*narrays), int64)
+   big_n = nint(bytes/(elem_bytes*narrays), int64)
    if (big_n > huge(n)) then
       write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64."
       write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_KIND=int64 (the default)."
@@ -495,7 +512,7 @@ program main
 
    ! Adjust number of iterations based on the byte size.
    ! For very small arrays, we should do more iterations to correctly
-   bytes = real(big_n, real64)*elem_bits*narrays/8
+   bytes = real(big_n, real64)*elem_bytes*narrays
    ! time the small memories.
    if ((.not. option_set_it) .and. bytes*bytes2MB < 1._real64) then
       ! bump it up to 50 iterations
@@ -512,8 +529,8 @@ program main
          ! For very few elements, this might be too much.
          ! Hence we decide that a stride of 8 elements is a *good*
          ! choice. So task size should be ~8 for optimal perf.
-         ! Therefore we take the minimum of elements/8
-         ! and 10 *num_threads.
+         ! Therefore we take the minimum:
+         !    min(elements/8, 10 *num_threads)
          if (big_n/8 < 10*options%num_threads) then
             kernel%num_tasks = max(1, big_n/8)
          else
@@ -529,31 +546,21 @@ program main
    if (options%debug) then
       write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
       write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
-      write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bits*narrays/(8*1024**2)
+      write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bytes*narrays/(1024**2)
       write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bytes]", elem_bytes
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
+      block
+         character(len=32) :: name
+         call options%kernel%name(name)
+         write (OUTPUT_UNIT, "(a)") trim(name)
+      end block
       select type (kernel => options%kernel)
-      type is (option_kernel_serial_t)
-         write (OUTPUT_UNIT, "(a)") "serial"
-      type is (option_kernel_do_t)
-         write (OUTPUT_UNIT, "(a)") "do"
-      type is (option_kernel_do_simd_t)
-         write (OUTPUT_UNIT, "(a)") "do:simd"
-      type is (option_kernel_workshare_t)
-         write (OUTPUT_UNIT, "(a)") "workshare"
       type is (option_kernel_taskloop_t)
-         write (OUTPUT_UNIT, "(a)") "taskloop"
          write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
-      type is (option_kernel_loop_t)
-         write (OUTPUT_UNIT, "(a)") "loop"
-      type is (option_kernel_teams_distribute_t)
-         write (OUTPUT_UNIT, "(a)") "teams:distribute"
-      type is (option_kernel_teams_parallel_t)
-         write (OUTPUT_UNIT, "(a)") "teams:parallel"
       end select
       ! Important to use big_n
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
@@ -598,27 +605,11 @@ program main
       if (rank_mpi == 0 .and. .not. (info_env%show .or. options%test)) then
 
          write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
-         select type (kernel => options%kernel)
-         type is (option_kernel_serial_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "serial"
-         type is (option_kernel_do_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do"
-         type is (option_kernel_do_simd_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "do:simd"
-         type is (option_kernel_workshare_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "workshare"
-         type is (option_kernel_taskloop_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "taskloop"
-         type is (option_kernel_loop_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "loop"
-         type is (option_kernel_teams_distribute_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "teams:distribute"
-         type is (option_kernel_teams_parallel_t)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") "teams:parallel"
-         class default
-            write (ERROR_UNIT, *) "Unknown kernel specification"
-            stop 5
-         end select
+         block
+            character(len=32) :: name
+            call options%kernel%name(name)
+            write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(name)
+         end block
          if (options%first_touch) then
             ! parallel
             write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 1
