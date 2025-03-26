@@ -57,11 +57,16 @@ contains
 
    end subroutine start
 
-   subroutine stop(timing)
+   subroutine stop(timing, store)
 !$    use omp_lib, only: omp_get_wtime
       class(timing_t), intent(inout) :: timing
+      real(real64), intent(out), optional :: store
 
 !$    timing%time = omp_get_wtime() - timing%t0
+
+      if (present(store)) then
+         store = timing%time
+      end if
 
    end subroutine stop
 
