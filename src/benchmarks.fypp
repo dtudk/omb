@@ -24,8 +24,7 @@
    #:if in_teams == 0
       !$omp barrier
       !$omp ${OMB_OMP_MASKED}$
-      call timing%stop()
-      ${var}$ = timing%time
+      call timing%stop(${var}$)
       !$omp end ${OMB_OMP_MASKED}$
    #:else
       call timing%stop(${var}$)
