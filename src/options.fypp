@@ -19,7 +19,7 @@ module options_m
       !< Whether the arrays are using a parallel first-touch, otherwise serial
       logical :: first_touch = .true.
       !< Offset in allocation, just to ensure non-contiguity of array-allocations
-      integer :: offset = 0
+      integer(${OMB_INT_KIND}$) :: offset = 0
       !< Number of threads maximal available. Mainly used for special benchmarks
       integer :: num_threads = 1
 

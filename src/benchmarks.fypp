@@ -202,18 +202,18 @@ contains
 
       subroutine init_array_${real}$ (n, a, v, options)
          integer(${OMB_INT_KIND}$), intent(in) :: n
-         real(${real}$), intent(inout) :: a(n)
-         real(${real}$), intent(in) :: v
          type(options_t), intent(in):: options
+         real(${real}$), intent(inout) :: a(n + options%offset)
+         real(${real}$), intent(in) :: v
 
          integer(${OMB_INT_KIND}$) :: i
          real(${real}$) :: sum
          integer :: it
 
          if (options%first_touch) then
-            call first_touch_parallel(n, a, v)
+            call first_touch_parallel(n + options%offset, a, v)
          else
-            call first_touch_serial(n, a, v)
+            call first_touch_serial(n + options%offset, a, v)
          end if
 
          do it = 1, options%warmup_it
@@ -250,7 +250,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -378,7 +378,7 @@ contains
          call results%update(1, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*0.5_${real}$
+            write (*, test_fmt) sum(a(1:n)) - n*0.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -405,7 +405,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -531,7 +531,7 @@ contains
          call results%update(1, n, 0, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*fill
+            write (*, test_fmt) sum(a(1:n)) - n*fill
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -557,7 +557,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -683,7 +683,7 @@ contains
          call results%update(2, n, 0, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*1.5_${real}$
+            write (*, test_fmt) sum(a(1:n)) - n*1.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -712,7 +712,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -838,7 +838,7 @@ contains
          call results%update(2, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*scale*1.5_${real}$
+            write (*, test_fmt) sum(a(1:n)) - n*scale*1.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -866,7 +866,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -992,7 +992,7 @@ contains
          call results%update(3, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*(1.5_${real}$+2.5_${real}$)
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+2.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -1023,7 +1023,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -1149,7 +1149,7 @@ contains
          call results%update(3, n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*(1.5_${real}$+scale*2.5_${real}$)
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -1179,7 +1179,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -1305,7 +1305,7 @@ contains
          call results%update(4, n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c, d)
@@ -1334,7 +1334,7 @@ contains
 !$omp end parallel
 
          if (options%test) then
-            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
          end if
 
          select type (kernel => options%kernel)
@@ -1460,7 +1460,7 @@ contains
          call results%update(2, n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*(0.5_${real}$+scale*1.5_${real}$)
+            write (*, test_fmt) sum(a(1:n)) - n*(0.5_${real}$+scale*1.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b)
@@ -1474,7 +1474,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_KIND}$) :: i
-         integer :: id, it
+         integer :: id, it, team
          type(timing_t) :: timing
 
          real(${real}$) :: scale
@@ -1486,6 +1486,8 @@ contains
                ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c
          #:endif
 
+         scale = 2._${real}$
+
          #:if ARRAY_IS_POINTER
             nullify (a, b, c)
          #:endif
@@ -1496,42 +1498,114 @@ contains
             allocate (c(options%num_threads, n + options%offset))
          #:endif
 
-         scale = 2._${real}$
-
-!$omp parallel default(none) &
-!$omp&  private(it,i,id) shared(n,a,b,c,scale,options,results,timing)
-
+!$omp parallel default(none) shared(n,a,b,c,options)
          ! Direct call to omit interface constructs which has different shape
          call init_array_${real}$ (options%num_threads*n, a, 0.5_${real}$, options)
          call init_array_${real}$ (options%num_threads*n, b, 1.5_${real}$, options)
          call init_array_${real}$ (options%num_threads*n, c, 2.5_${real}$, options)
+!$omp end parallel
 
-         ! Get local thread-id
-         id = omp_get_thread_num() + 1
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a(:, 1:n)) - options%num_threads*n*0.5_${real}$
+         end if
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            @:START_TIMING()
+         type is (option_kernel_teams_distribute_t)
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team,id) shared(n,a,b,c,scale,options,results,timing) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! To traverse everything, we don't need an OMP loop
-            ! Each thread accesses its own space.
-            do i = 1, n
-               a(id, i) = b(id, i) + scale*c(id, i)
+            ! This kernel uses each teams main thread (only 1 thread per team)
+            team = omp_get_team_num()
+            id = team + 1
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+               ! consider adding the distribute to account for overhead
+               do i = 1, n
+                  a(id, i) = b(id, i) + scale*c(id, i)
+               end do
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
             end do
 
-            ! there is no implicit barrier above
-            !$omp barrier
+!$omp end teams
 
-            @:STOP_TIMING(results%times(it))
+         type is (option_kernel_teams_parallel_t)
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team,id) shared(n,a,b,c,scale,options,results,timing) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
 
-         end do
+            ! This kernel uses one team, and then distributes
+            ! threads in the team in the parallel
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel default(none) &
+!$omp&  private(i,id) shared(n,a,b,c,scale)
+               id = omp_get_thread_num() + 1
+               do i = 1, n
+                  a(id, i) = b(id, i) + scale*c(id, i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel default(none) &
+!$omp&  private(it,i,id) shared(n,a,b,c,scale,options,results,timing)
+
+            ! Get local thread-id
+            id = omp_get_thread_num() + 1
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+
+                  ! To traverse everything, we don't need an OMP loop
+                  ! Each thread accesses its own space.
+                  do i = 1, n
+                     a(id, i) = b(id, i) + scale*c(id, i)
+                  end do
+
+                  @:TYPE_IS(option_kernel_workshare_t)
+
+                  a(id, :) = b(id, :) + scale*c(id, :)
+
+               class default
+
+                  stop UNKNOWN_METHOD_STOP
+
+               end select
+
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
+
+         end select
 
          call results%update(3, options%num_threads*n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*(1.5_${real}$+scale*2.5_${real}$)
+            write (*, test_fmt) sum(a(:, 1:n)) - options%num_threads*n*(1.5_${real}$+scale*2.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
@@ -1545,7 +1619,7 @@ contains
          type(results_t), intent(inout) :: results
 
          integer(${OMB_INT_KIND}$) :: i
-         integer :: id, it
+         integer :: id, it, team
          type(timing_t) :: timing
 
          #:if ARRAY_IS_STACK
@@ -1566,41 +1640,115 @@ contains
             allocate (d(options%num_threads, n + options%offset))
          #:endif
 
-!$omp parallel default(none) &
-!$omp&  private(it,i,id) shared(n,a,b,c,d,options,results,timing)
-
+!$omp parallel default(none) shared(n,a,b,c,d,options)
          ! Direct call to omit interface constructs which has different shape
          call init_array_${real}$ (options%num_threads*n, a, 0.5_${real}$, options)
          call init_array_${real}$ (options%num_threads*n, b, 1.5_${real}$, options)
          call init_array_${real}$ (options%num_threads*n, c, 2.5_${real}$, options)
          call init_array_${real}$ (options%num_threads*n, d, 3.5_${real}$, options)
+!$omp end parallel
 
-         ! Get local thread-id
-         id = omp_get_thread_num() + 1
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a(:, 1:n)) - options%num_threads*n*0.5_${real}$
+         end if
 
-         do it = 1, options%it
+         select type (kernel => options%kernel)
 
-            @:START_TIMING()
+         type is (option_kernel_teams_distribute_t)
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team,id) shared(n,a,b,c,d,options,results,timing) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! To traverse everything, we don't need an OMP loop
-            ! Each thread accesses its own space.
-            do i = 1, n
-               a(id, i) = b(id, i) + c(id, i)*d(id, i)
+            ! This kernel uses each teams main thread (only 1 thread per team)
+            team = omp_get_team_num()
+            id = team + 1
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+               ! consider adding the distribute to account for overhead
+               do i = 1, n
+                  a(id, i) = b(id, i) + c(id, i)*d(id, i)
+               end do
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
             end do
 
-            ! there is no implicit barrier above
-            !$omp barrier
+!$omp end teams
 
-            @:STOP_TIMING(results%times(it))
+         type is (option_kernel_teams_parallel_t)
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team,id) shared(n,a,b,c,d,options,results,timing) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
 
-         end do
+            ! This kernel uses one team, and then distributes
+            ! threads in the team in the parallel
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel default(none) &
+!$omp&  private(i,id) shared(n,a,b,c,d)
+               id = omp_get_thread_num() + 1
+               do i = 1, n
+                  a(id, i) = b(id, i) + c(id, i)*d(id, i)
+               end do
+!$omp end parallel
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel default(none) &
+!$omp&  private(it,i,id) shared(n,a,b,c,d,options,results,timing)
+
+            ! Get local thread-id
+            id = omp_get_thread_num() + 1
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+
+                  ! To traverse everything, we don't need an OMP loop
+                  ! Each thread accesses its own space.
+                  do i = 1, n
+                     a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                  end do
+
+                  @:TYPE_IS(option_kernel_workshare_t)
+
+                  a(id, :) = b(id, :) + c(id, :)*d(id, :)
+
+               class default
+
+                  stop UNKNOWN_METHOD_STOP
+
+               end select
+
+               @:STOP_TIMING(results%times(it))
+
+            end do
 
 !$omp end parallel
+
+         end select
 
          call results%update(4, options%num_threads*n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a) - n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
+            write (*, test_fmt) sum(a(:, 1:n)) - options%num_threads*n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c, d)

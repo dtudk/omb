@@ -506,20 +506,12 @@ program main
    case (METHOD_TRIADD_FALSE_SHARING)
       method_str = "triad-fs"
 
-      ! only one kernel can be used
-      deallocate (options%kernel)
-      allocate (option_kernel_do_t::options%kernel)
-
       n_dim2 = options%num_threads
 
       @:CASE_DTYPE_BENCHMARK(bench_triadd_false_sharing)
 
    case (METHOD_QUADD_FALSE_SHARING)
       method_str = "quad-fs"
-
-      ! only one kernel can be used
-      deallocate (options%kernel)
-      allocate (option_kernel_do_t::options%kernel)
 
       n_dim2 = options%num_threads
 
