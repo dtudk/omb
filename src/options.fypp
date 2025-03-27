@@ -46,6 +46,10 @@ module options_m
    type, public, extends(option_kernel_t) :: option_kernel_serial_t
    end type
 
+   !< Use the parallel construct, then manual static splitting.
+   type, public, extends(option_kernel_t) :: option_kernel_manual_t
+   end type
+
    !< Use the parallel do construct.
    type, public, extends(option_kernel_t) :: option_kernel_do_t
    end type
@@ -100,6 +104,8 @@ contains
       select type (this)
       type is (option_kernel_serial_t)
          name = "serial"
+      type is (option_kernel_manual_t)
+         name = "manual"
       type is (option_kernel_do_t)
          name = "do"
       type is (option_kernel_do_simd_t)

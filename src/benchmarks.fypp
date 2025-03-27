@@ -74,6 +74,7 @@ module benchmarks_m
 
    implicit none
    private
+
    integer, parameter :: UNKNOWN_METHOD_STOP = 6
 
    integer, public, parameter :: METHOD_NOT_SET = 0
@@ -237,7 +238,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -319,11 +320,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,sum_a,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,sum_a,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     sum_a = sum_a + a(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i) reduction(+:sum_a)
@@ -390,7 +397,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -472,11 +479,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,fill,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,fill,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = fill
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -543,7 +556,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -624,11 +637,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,b,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,b,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = b(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -695,7 +714,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -779,11 +798,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,b,scale,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,b,scale,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = scale*b(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -850,7 +875,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -933,11 +958,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,b,c,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,b,c,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = b(i) + c(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -1004,7 +1035,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -1090,11 +1121,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,b,c,scale,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,b,c,scale,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = b(i) + scale*c(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -1161,7 +1198,7 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
-         integer(${OMB_INT_KIND}$) :: i
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
@@ -1246,11 +1283,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it,i) shared(n,a,b,c,d,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,b,c,d,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -1317,10 +1360,10 @@ contains
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
 
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
          integer :: it, team
          type(timing_t) :: timing
 
-         integer(${OMB_INT_KIND}$) :: i
          real(${real}$) :: scale
          @:ARRAY_DEFINE(${real}$, n + options%offset, a, b)
 
@@ -1401,11 +1444,17 @@ contains
          class default
 
 !$omp parallel default(none) &
-!$omp&  private(it) shared(n,a,b,scale,options,results,timing)
+!$omp&  private(it,i,istart,iend) shared(n,a,b,scale,options,results,timing)
+            call manual_split(n, istart, iend)
 
             do it = 1, options%it
 
                select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_manual_t)
+                  do i = istart, iend
+                     a(i) = a(i) + scale*b(i)
+                  end do
 
                   @:TYPE_IS(option_kernel_do_t)
 !$omp do schedule(runtime) private(i)
@@ -1519,16 +1568,18 @@ contains
 
             ! This kernel uses each teams main thread (only 1 thread per team)
             team = omp_get_team_num()
-            id = team + 1
 
             do it = 1, options%it
 
                @:START_TIMING(in_teams=1)
 
-               ! consider adding the distribute to account for overhead
-               do i = 1, n
-                  a(id, i) = b(id, i) + scale*c(id, i)
+!$omp distribute dist_schedule(static) private(i,id)
+               do id = 1, omp_get_num_teams()
+                  do i = 1, n
+                     a(id, i) = b(id, i) + scale*c(id, i)
+                  end do
                end do
+!$omp end distribute
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -1662,16 +1713,18 @@ contains
 
             ! This kernel uses each teams main thread (only 1 thread per team)
             team = omp_get_team_num()
-            id = team + 1
 
             do it = 1, options%it
 
                @:START_TIMING(in_teams=1)
 
-               ! consider adding the distribute to account for overhead
-               do i = 1, n
-                  a(id, i) = b(id, i) + c(id, i)*d(id, i)
+!$omp distribute dist_schedule(static) private(i,id)
+               do id = 1, omp_get_num_teams()
+                  do i = 1, n
+                     a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                  end do
                end do
+!$omp end distribute
 
                @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -1756,5 +1809,29 @@ contains
       end subroutine
 
    #:endfor
+
+   subroutine manual_split(n, istart, iend)
+      integer(${OMB_INT_KIND}$), intent(in) :: n
+      integer(${OMB_INT_KIND}$), intent(out) :: istart, iend
+
+      integer :: nt, id
+      integer(${OMB_INT_KIND}$) :: split
+
+      nt = omp_get_num_threads()
+      id = omp_get_thread_num()
+
+      ! Now calculate what we will loop
+      split = n/nt
+
+      istart = split*id + 1
+      iend = split*(id + 1)
+
+      if (nt == id + 1) then
+         ! Ensure the last one gets the correct number of iterations
+         ! In case it does not match number of threads
+         iend = iend + mod(n, nt)
+      end if
+
+   end subroutine
 
 end module benchmarks_m

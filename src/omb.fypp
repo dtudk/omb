@@ -141,6 +141,8 @@ program main
             select case (arg)
             case ("serial")
                allocate (option_kernel_serial_t::options%kernel)
+            case ("manual")
+               allocate (option_kernel_manual_t::options%kernel)
             case ("do")
                allocate (option_kernel_do_t::options%kernel)
             case ("do:simd")
@@ -805,6 +807,7 @@ contains
       write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
       write (OUTPUT_UNIT, fmt_oa) " - do -> use parallel do clause [default]"
       write (OUTPUT_UNIT, fmt_oa) " - do:simd -> use parallel do simd clause"
+      write (OUTPUT_UNIT, fmt_oa) " - manual -> use parallel clause, static manual split"
       write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
       write (OUTPUT_UNIT, fmt_oa) "   lhs-realloc is explicitly prohibited by a(:) = ..."
       write (OUTPUT_UNIT, fmt_oa) " - taskloop[,num_tasks] -> use parallel taskloop clause"

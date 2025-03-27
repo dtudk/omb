@@ -168,6 +168,7 @@ OpenMP allows several ways to utilize parallelism.
 | ----- | ----- |
 | `do` | `!$omp parallel do` |
 | `do simd` | `!$omp parallel do simd` |
+| `manual` | `!$omp parallel` |
 | `workshare` | `!$omp parallel workshare` |
 | `loop` | `!$omp parallel loop` |
 | `taskloop` | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
