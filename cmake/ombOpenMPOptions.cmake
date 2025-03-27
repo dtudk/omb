@@ -8,8 +8,12 @@ cmake_push_check_state()
 # Append to the list of libraries required to compile the test sources
 list(APPEND CMAKE_REQUIRED_LIBRARIES OpenMP::OpenMP_Fortran)
 
-message(STATUS "Checking OpenMP fortran features")
+message(STATUS "OpenMP fortran")
 list(APPEND CMAKE_MESSAGE_INDENT "  ")
+
+# Print out information related to the Fortran standard
+cmake_print_variables(OpenMP_Fortran_SPEC_DATE)
+cmake_print_variables(OpenMP_Fortran_VERSION)
 
 CHECK_START("* has places information")
 set(source "
@@ -101,5 +105,7 @@ CHECK_PASS_FAIL( f_omp_loop REQUIRED )
 if( error_omb )
   message(FATAL_ERROR "Some OpenMP fortran features are not available, please select another compiler")
 endif()
+
+
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 cmake_pop_check_state()
