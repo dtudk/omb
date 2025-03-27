@@ -35,11 +35,12 @@ cmake -S. -Bobj
 cmake --build $obj -v
 ```
 which builds an executable `omb` + drivers for running `omb` in
-more complicated combinations of thread-placements.
+unique thread-placement combinations.
 
 Please ensure that all optimizations are enabled to enable
 a full benchmark (compiling with `-O1` will generally show
-a very bad performance).
+worse performance than expected).
+
 
 ### Controlling allocation behavior
 
@@ -48,7 +49,7 @@ formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
 
 - `OMB_INT_KIND`
   Controls the integer kind for the loop and size counters.
-  It defaults to the 64-byte integer.
+  It defaults to the 64-byte integer to allow large arrays.
 
 - `OMB_ALLOC_TYPE`
   Fortran allows 3 different ways of allocating memory.
@@ -61,6 +62,7 @@ formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
     ```fortran
     real :: a(N)
     ```
+    Be sure to set an unlimited stack size before running!
 
   - `allocatable`
 
@@ -81,23 +83,24 @@ formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
   However, one can selectively use the fortran intrinsics (`system_clock`).
 
   Please compile `omb`, then run `omb -env` and check the timing precision
-  of both, they are typically the same precision, then select the one with
+  of both, they are typically the same precision. Select the one with
   the highest precision (smallest number).
 
   - `omp` (default)
 
-    Use the OpenMP library `omp_get_wtime`
+    Uses the OpenMP library `omp_get_wtime`
 
   - `systemclock`
 
-    Use the fortran instrinsic `system_clock`.
+    Use the fortran intrinsic `system_clock`.
 
 
 
 ## Running
 
 This benchmark system has quite a bit of options.
-For the most up to date options, please refer to `omb -h`.
+For the most up to date options, please refer to the help
+of the program: `omb --help`.
 
 Here are the most commonly used options for `omb`:
 
@@ -112,12 +115,13 @@ Here are the most commonly used options for `omb`:
 | | Please see `omb --help` for available kernels. |
 
 Besides the optional flags, the benchmark includes a large number of
-different methods. The default method to run the benchmark on is the
+different methods. The default method to run the benchmark is the
 `triad` method.
 
 | Method | Operation |
 | ---- | --------- |
 | `triad` | `a = b + c * 2` |
+| `quad` | `a = b + c * d` |
 | `axpy` |  `a = a + b * 2` |
 | `scale` | `a = b * 2` |
 | `add` |   `a = b + c` |
@@ -131,7 +135,7 @@ As an example lets invoke `omb` with
 - the `triad` method,
 - using the `parallel do simd` construct
 - 20MB allocated memory
-- taking the minimum timing out of 10 iterations
+- taking the best timing out of 10 iterations
 - use 2 threads, and the two cores, as specified by the runtime.
 
 ```shell
@@ -141,7 +145,7 @@ The output will look something like this:
 ```shell
  triad do:simd 1 8   1.99999924E+01   5.18938001E-04   6.45935400E-04   1.15988655E-08   8.63896001E-04  37.63694799E+00   3.36769710E+00
 ```
-The columns is described in this small box, `omb -h` will also show this information.
+The columns is described in this small box, `omb --help` will also show this information.
 | Short name | Description |
 | ---- | ------ |
 | `METHOD`        | name of the method running |
@@ -155,6 +159,48 @@ The columns is described in this small box, `omb -h` will also show this informa
 | `TIME_MAX`      | maximum runtime of iterations, in seconds |
 | `BANDWIDTH_GBS` | maxmimum bandwidth in GBytes/s (using `TIME_MIN`) |
 | `GFLOPS`        | maxmimum FLOPS in G/s (using `TIME_MIN`) |
+
+
+### Kernels
+
+OpenMP allows several ways to utilize parallelism.
+
+| Kernel | OpenMP construct |
+| ----- | ----- |
+| `do` | `parallel do` |
+| `do simd` | `parallel do simd` |
+| `workshare` | `parallel workshare` |
+| `loop` | `parallel loop` |
+| `taskloop` | <pre> parallel<br> single <br> taskloop </pre> |
+| `teams:distribute` | <pre> teams<br> distribute </pre> |
+| `teams:parallel` | <pre> teams<br> parallel do </pre> |
+
+Generally the `do` and `do simd` are *best*.
+The `teams` construct was mainly introduces to perform distributed
+computations on GPU's due to its multi-level parallelism. However,
+it can be *abused* for CPU's as well.
+There will be a *wide* spread of performance depending on the compiler
+used.
+
+
+### Specialized methods
+
+Some methods are not meant for showcasing performance of the system, but
+rather some *bad* usage of OpenMP constructs.
+
+There are some *false-sharing* methods available which can highlight the
+performance hit by using false-sharing access patterns (bad cache usage).
+
+| Method | Operation |
+| ---- | --------- |
+| `triad-fs` | `a = b + c * 2` |
+| `quad-fs` | `a = b + c * d` |
+
+And there is a limited amount of kernels allowed because of the way
+it accesses the memory elements.
+One can compare the `triad` with the `triad-fs` using the `do` kernel.
+And then any performance hit will be due to the false-sharing access
+pattern.
 
 
 ### Running the *driver*
@@ -202,17 +248,19 @@ omit the prefix.
 
 ### Implementation remarks
 
-The `omb` benchmark program is an extension of the [STREAM](http://www.cs.virginia.edu/stream/ref.html)
-program.
+The `omb` benchmark program is an extension/rewrite
+of the [STREAM](http://www.cs.virginia.edu/stream/ref.html) program.
+However, it has a different goal than just showing the memory bandwidth
+limit of the system.
 
 It, however, takes some different approaches:
 
 - `omb` encapsulates *only* the algorithm in the timing.
   `STREAM` does a timing around the `omp parallel` pragmas/constructs.
-  Hence, `STREAM` would also time the creation of threads, which may,
+  Hence, `STREAM` also times spawning of threads, which may,
   or may not, be desired.
 - `omb` has command-line arguments to change internal allocated array
-  sizes and iteration parameters etc.
+  sizes and iteration parameters etc. (no recompiling needed)
 - `omb` has different kernels for each method implemented.
 - `omb` has more methods implemented.
   Note the `STREAM` comments about which methods are applicable
