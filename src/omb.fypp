@@ -33,7 +33,7 @@ program main
 
    ! narrays highly linked to default method
    integer :: narrays = 3
-   integer :: method = METHOD_TRIAD
+   integer :: method = METHOD_TRIADD
 
    ! TODO
    !integer, parameter :: DTYPE_REAL16 = 1
@@ -186,9 +186,13 @@ program main
             method = METHOD_SCALE
             narrays = 2
 
-         case ("triad", "triadd")
-            method = METHOD_TRIAD
+         case ("triadd", "triad")
+            method = METHOD_TRIADD
             narrays = 3
+
+         case ("quadd", "quad", "quadadd", "quadad")
+            method = METHOD_QUADD
+            narrays = 4
 
          case ("axpy")
             method = METHOD_AXPY
@@ -204,9 +208,13 @@ program main
             method = METHOD_AXPY
             narrays = 2
 
-         case ("triad-fs")
-            method = METHOD_TRIAD_FALSE_SHARING
+         case ("triadd-fs", "triad-fs")
+            method = METHOD_TRIADD_FALSE_SHARING
             narrays = 3
+
+         case ("quadd-fs", "quad-fs", "quadadd-fs", "quadad-fs")
+            method = METHOD_QUADD_FALSE_SHARING
+            narrays = 4
 
          case ("-dtype", "--dtype")
 
@@ -470,10 +478,15 @@ program main
 
       @:CASE_DTYPE_BENCHMARK(bench_copy)
 
-   case (METHOD_TRIAD)
+   case (METHOD_TRIADD)
       method_str = "triad"
 
-      @:CASE_DTYPE_BENCHMARK(bench_triad)
+      @:CASE_DTYPE_BENCHMARK(bench_triadd)
+
+   case (METHOD_QUADD)
+      method_str = "quad"
+
+      @:CASE_DTYPE_BENCHMARK(bench_quadd)
 
    case (METHOD_SUM)
       method_str = "sum"
@@ -490,12 +503,27 @@ program main
 
       @:CASE_DTYPE_BENCHMARK(bench_fill)
 
-   case (METHOD_TRIAD_FALSE_SHARING)
+   case (METHOD_TRIADD_FALSE_SHARING)
       method_str = "triad-fs"
+
+      ! only one kernel can be used
+      deallocate (options%kernel)
+      allocate (option_kernel_do_t::options%kernel)
 
       n_dim2 = options%num_threads
 
-      @:CASE_DTYPE_BENCHMARK(bench_triad_false_sharing)
+      @:CASE_DTYPE_BENCHMARK(bench_triadd_false_sharing)
+
+   case (METHOD_QUADD_FALSE_SHARING)
+      method_str = "quad-fs"
+
+      ! only one kernel can be used
+      deallocate (options%kernel)
+      allocate (option_kernel_do_t::options%kernel)
+
+      n_dim2 = options%num_threads
+
+      @:CASE_DTYPE_BENCHMARK(bench_quadd_false_sharing)
 
    case default
 
@@ -761,6 +789,7 @@ contains
 
       write (OUTPUT_UNIT, '(a)') "Methods:"
       write (OUTPUT_UNIT, fmt_arg_a) "triad", "a = b + c * 2  [default]"
+      write (OUTPUT_UNIT, fmt_arg_a) "quad", "a = b + c * d"
       write (OUTPUT_UNIT, fmt_arg_a) "axpy", "a = a + b * 2"
       write (OUTPUT_UNIT, fmt_arg_a) "scale", "a = b * 2"
       write (OUTPUT_UNIT, fmt_arg_a) "add", "a = b + c"
@@ -768,7 +797,9 @@ contains
       write (OUTPUT_UNIT, fmt_arg_a) "sum", "res = sum(a)"
       write (OUTPUT_UNIT, fmt_arg_a) "copy", "a = b"
       write (OUTPUT_UNIT, fmt_arg_a) "triad-fs", "a = b + c * 2"
-      write (OUTPUT_UNIT, fmt_aa) "Forcefully access arrays in false-sharing."
+      write (OUTPUT_UNIT, fmt_aa) "Forcefull false-sharing access."
+      write (OUTPUT_UNIT, fmt_arg_a) "quad-fs", "a = b + c * d"
+      write (OUTPUT_UNIT, fmt_aa) "Forcefull false-sharing access."
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, '(a)') "Options:"

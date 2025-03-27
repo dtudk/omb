@@ -74,26 +74,31 @@ module benchmarks_m
 
    implicit none
    private
+   integer, parameter :: UNKNOWN_METHOD_STOP = 6
 
    integer, public, parameter :: METHOD_NOT_SET = 0
    integer, public, parameter :: METHOD_ADD = 1
    integer, public, parameter :: METHOD_SCALE = 2
    integer, public, parameter :: METHOD_COPY = 3
-   integer, public, parameter :: METHOD_TRIAD = 4
+   integer, public, parameter :: METHOD_TRIADD = 4
    integer, public, parameter :: METHOD_SUM = 5
    integer, public, parameter :: METHOD_AXPY = 6
    integer, public, parameter :: METHOD_FILL = 7
-   integer, public, parameter :: METHOD_TRIAD_FALSE_SHARING = 8
+   integer, public, parameter :: METHOD_TRIADD_FALSE_SHARING = 8
+   integer, public, parameter :: METHOD_QUADD = 9
+   integer, public, parameter :: METHOD_QUADD_FALSE_SHARING = 10
 
    #:for real in REALS
       public :: bench_add_${real}$
       public :: bench_scale_${real}$
       public :: bench_copy_${real}$
-      public :: bench_triad_${real}$
+      public :: bench_triadd_${real}$
+      public :: bench_quadd_${real}$
       public :: bench_sum_${real}$
       public :: bench_axpy_${real}$
       public :: bench_fill_${real}$
-      public :: bench_triad_false_sharing_${real}$
+      public :: bench_triadd_false_sharing_${real}$
+      public :: bench_quadd_false_sharing_${real}$
    #:endfor
 
    public :: benchmark_method
@@ -170,7 +175,7 @@ contains
 
          integer(${OMB_INT_KIND}$) :: i
 
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
          do i = 1, n
             a(i) = v
          end do
@@ -216,7 +221,7 @@ contains
             ! We can't do a reduction on the sum
             ! variable, since it is an orphaned
             ! method.
-!$omp do private(i,sum) schedule(runtime)
+!$omp do schedule(runtime) private(i,sum)
             do i = 1, n
                sum = sum + a(i)
             end do
@@ -274,7 +279,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   sum_a = sum_a + a(i)
                end do
@@ -321,14 +326,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime) reduction(+:sum_a)
+!$omp do schedule(runtime) private(i) reduction(+:sum_a)
                   do i = 1, n
                      sum_a = sum_a + a(i)
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime) reduction(+:sum_a)
+!$omp do simd schedule(runtime) private(i) reduction(+:sum_a)
                   do i = 1, n
                      sum_a = sum_a + a(i)
                   end do
@@ -358,7 +363,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -427,7 +432,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   a(i) = fill
                end do
@@ -474,14 +479,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = fill
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime)
+!$omp do simd schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = fill
                   end do
@@ -511,7 +516,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -579,7 +584,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   a(i) = b(i)
                end do
@@ -626,14 +631,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = b(i)
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime)
+!$omp do simd schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = b(i)
                   end do
@@ -663,7 +668,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -734,7 +739,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   a(i) = scale*b(i)
                end do
@@ -781,14 +786,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = scale*b(i)
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime)
+!$omp do simd schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = scale*b(i)
                   end do
@@ -818,7 +823,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -888,7 +893,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   a(i) = b(i) + c(i)
                end do
@@ -935,14 +940,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = b(i) + c(i)
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime)
+!$omp do simd schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = b(i) + c(i)
                   end do
@@ -972,7 +977,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -994,7 +999,7 @@ contains
 
       end subroutine
 
-      subroutine bench_triad_${real}$ (n, options, results)
+      subroutine bench_triadd_${real}$ (n, options, results)
          integer(${OMB_INT_KIND}$), intent(in) :: n
          type(options_t), intent(in):: options
          type(results_t), intent(inout) :: results
@@ -1045,7 +1050,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   a(i) = b(i) + scale*c(i)
                end do
@@ -1092,14 +1097,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = b(i) + scale*c(i)
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime)
+!$omp do simd schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = b(i) + scale*c(i)
                   end do
@@ -1129,7 +1134,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -1148,6 +1153,162 @@ contains
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
+
+      end subroutine
+
+      subroutine bench_quadd_${real}$ (n, options, results)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_INT_KIND}$) :: i
+         integer :: it, team
+         type(timing_t) :: timing
+
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a, b, c, d)
+
+!$omp parallel default(none) shared(n,a,b,c,d,options)
+         call array_allocate(n, a, options)
+         call array_allocate(n, b, options)
+         call array_allocate(n, c, options)
+         call array_allocate(n, d, options)
+         call init_array(n, a, 0.5_${real}$, options)
+         call init_array(n, b, 1.5_${real}$, options)
+         call init_array(n, c, 2.5_${real}$, options)
+         call init_array(n, d, 3.5_${real}$, options)
+!$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a) - n*0.5_${real}$
+         end if
+
+         select type (kernel => options%kernel)
+
+         type is (option_kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do i = 1, n
+                  a(i) = b(i) + c(i)*d(i)
+               end do
+               call timing%stop(results%times(it))
+            end do
+
+         type is (option_kernel_teams_distribute_t)
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team) shared(n,a,b,c,d,options,results,timing) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp distribute dist_schedule(static) private(i)
+               do i = 1, n
+                  a(i) = b(i) + c(i)*d(i)
+               end do
+!$omp end distribute
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         type is (option_kernel_teams_parallel_t)
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team) shared(n,a,b,c,d,options,results,timing) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, options%it
+
+               @:START_TIMING(in_teams=1)
+
+!$omp parallel do default(none) schedule(runtime) &
+!$omp&  private(i) shared(n,a,b,c,d)
+               do i = 1, n
+                  a(i) = b(i) + c(i)*d(i)
+               end do
+!$omp end parallel do
+
+               @:STOP_TIMING(results%times(it), in_teams=1)
+
+            end do
+
+!$omp end teams
+
+         class default
+
+!$omp parallel default(none) &
+!$omp&  private(it,i) shared(n,a,b,c,d,options,results,timing)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(option_kernel_do_t)
+!$omp do schedule(runtime) private(i)
+                  do i = 1, n
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
+!$omp end do
+
+                  @:TYPE_IS(option_kernel_do_simd_t)
+!$omp do simd schedule(runtime) private(i)
+                  do i = 1, n
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
+!$omp end do simd
+
+                  @:TYPE_IS(option_kernel_workshare_t)
+!$omp workshare
+                  a(:) = b(:) + c(:)*d(:)
+!$omp end workshare
+
+                  @:TYPE_IS(option_kernel_taskloop_t)
+!$omp single
+!$omp taskloop private(i) shared(n,a,b,c,d) &
+!$omp&  num_tasks(kernel%num_tasks)
+                  do i = 1, n
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
+!$omp end taskloop
+!$omp end single
+
+                  @:TYPE_IS(option_kernel_loop_t)
+!$omp loop private(i)
+                  do i = 1, n
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
+!$omp end loop
+
+               class default
+
+                  stop UNKNOWN_METHOD_STOP
+
+               end select
+
+               @:STOP_TIMING(results%times(it))
+
+            end do
+
+!$omp end parallel
+
+         end select
+
+         call results%update(4, n, 2, storage_size(1.0_${real}$))
+
+         if (options%test) then
+            write (*, test_fmt) sum(a) - n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
+         end if
+
+         @:ARRAY_DEALLOC(a, b, c, d)
 
       end subroutine
 
@@ -1200,7 +1361,7 @@ contains
 
                @:START_TIMING(in_teams=1)
 
-!$omp distribute private(i) dist_schedule(static)
+!$omp distribute dist_schedule(static) private(i)
                do i = 1, n
                   a(i) = a(i) + scale*b(i)
                end do
@@ -1247,14 +1408,14 @@ contains
                select type (kernel => options%kernel)
 
                   @:TYPE_IS(option_kernel_do_t)
-!$omp do private(i) schedule(runtime)
+!$omp do schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = a(i) + scale*b(i)
                   end do
 !$omp end do
 
                   @:TYPE_IS(option_kernel_do_simd_t)
-!$omp do simd private(i) schedule(runtime)
+!$omp do simd schedule(runtime) private(i)
                   do i = 1, n
                      a(i) = a(i) + scale*b(i)
                   end do
@@ -1284,7 +1445,7 @@ contains
 
                class default
 
-                  stop 5
+                  stop UNKNOWN_METHOD_STOP
 
                end select
 
@@ -1306,7 +1467,7 @@ contains
 
       end subroutine
 
-      subroutine bench_triad_false_sharing_${real}$ (n, options, results)
+      subroutine bench_triadd_false_sharing_${real}$ (n, options, results)
          use omp_lib, only: omp_get_thread_num
          integer(${OMB_INT_KIND}$), intent(in) :: n
          type(options_t), intent(in):: options
@@ -1374,6 +1535,75 @@ contains
          end if
 
          @:ARRAY_DEALLOC(a, b, c)
+
+      end subroutine
+
+      subroutine bench_quadd_false_sharing_${real}$ (n, options, results)
+         use omp_lib, only: omp_get_thread_num
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_INT_KIND}$) :: i
+         integer :: id, it
+         type(timing_t) :: timing
+
+         #:if ARRAY_IS_STACK
+            real(${real}$), dimension(options%num_threads, n + options%offset) :: a, b, c, d
+         #:else
+            real(${real}$), dimension(:, :), ${OMB_ALLOC_TYPE}$ &
+               ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c, d
+         #:endif
+
+         #:if ARRAY_IS_POINTER
+            nullify (a, b, c, d)
+         #:endif
+
+         #:if not ARRAY_IS_STACK
+            allocate (a(options%num_threads, n + options%offset))
+            allocate (b(options%num_threads, n + options%offset))
+            allocate (c(options%num_threads, n + options%offset))
+            allocate (d(options%num_threads, n + options%offset))
+         #:endif
+
+!$omp parallel default(none) &
+!$omp&  private(it,i,id) shared(n,a,b,c,d,options,results,timing)
+
+         ! Direct call to omit interface constructs which has different shape
+         call init_array_${real}$ (options%num_threads*n, a, 0.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, b, 1.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, c, 2.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, d, 3.5_${real}$, options)
+
+         ! Get local thread-id
+         id = omp_get_thread_num() + 1
+
+         do it = 1, options%it
+
+            @:START_TIMING()
+
+            ! To traverse everything, we don't need an OMP loop
+            ! Each thread accesses its own space.
+            do i = 1, n
+               a(id, i) = b(id, i) + c(id, i)*d(id, i)
+            end do
+
+            ! there is no implicit barrier above
+            !$omp barrier
+
+            @:STOP_TIMING(results%times(it))
+
+         end do
+
+!$omp end parallel
+
+         call results%update(4, options%num_threads*n, 2, storage_size(1.0_${real}$))
+
+         if (options%test) then
+            write (*, test_fmt) sum(a) - n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
+         end if
+
+         @:ARRAY_DEALLOC(a, b, c, d)
 
       end subroutine
 

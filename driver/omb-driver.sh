@@ -70,6 +70,8 @@
 #
 
 _prefix="omb: "
+_prefix_debug="omb-debug: "
+
 # Driver for creating comprehensive benchmarks.
 [ -z "$OMB_EXE" ] && OMB_EXE=$(which omb 2>/dev/null)
 [ -z "$OMB_EXE" ] && OMB_EXE=$(dirname $(readlink -f "$0"))/omb
@@ -107,11 +109,45 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+if [[ -n "$DEBUG" ]]; then
+  echo >&2 "$_prefix_debug OMB_EXE=$OMB_EXE"
+  echo >&2 "$_prefix_debug OMP_NUM_THREADS=$OMP_NUM_THREADS"
+  echo >&2 "$_prefix_debug OMP_PLACES=$OMB_PLACES"
+  echo >&2 "$_prefix_debug OMP_SCHEDULE=$OMP_SCHEDULE"
+  echo >&2 "$_prefix_debug single=$_only_one"
+  echo >&2 "$_prefix_debug without-place-info=$_no_place_info"
+  echo >&2 "$_prefix_debug arguments passed to 'omb': $@"
+fi
 
 function error_show_tmp() {
   # Simple function to show the temporary content, mainly for debugging
   echo >&2 "$_prefix Content of the $OMB_EXE -env for figuring out places.."
   cat >&2 $tmpfile
+}
+
+function _debug_array {
+  local name="$1"
+  local -n array="$1"
+  shift
+  if [ -z "$DEBUG" ]; then
+    return
+  fi
+
+  if [ $# -gt 0 ]; then
+    echo >&2 "$_prefix_debug $@"
+  fi
+  case ${#array[@]} in
+    0)
+      echo >&2 "$_prefix_debug  $name is empty"
+      ;;
+    *)
+      for i in $(seq 1 ${#array[@]})
+      do
+        let i--
+        echo >&2 "$_prefix_debug  $name[$i]  = ${array[$i]}"
+      done
+      ;;
+  esac
 }
 
 # Create a nested loop-construct based on the OMP_PLACES.
@@ -167,6 +203,10 @@ do
   fi
 done < $tmpfile
 
+
+_debug_array place_num_procs "Number of processor places per place"
+_debug_array place_proc_ids "Processor ID's per place"
+
 # Create a hash-array that can be used to check for double runs.
 # Possible scenarios are:
 #  OMP_PLACES={0:4}:2:4,{0:4}:2:4
@@ -196,7 +236,14 @@ fmt="%${max_len}s"
 # OMP_NUM_THREADS X-nested loop construct.
 declare -a bench_places
 
-function loop_bench_places_step {
+# Setup the initial benchmark
+for id in $(seq 1 $num_threads)
+do
+  let id--
+  bench_places[$id]=$id
+done
+
+function loop_bench_places {
   local id=$1
   shift
 
@@ -211,8 +258,9 @@ function loop_bench_places_step {
 
     # We have tried all places for this entry
     # step previous element
-    local prev_id=$((id-1))
-    loop_bench_places_step $prev_id
+    local prev_id=$id
+    let prev_id--
+    loop_bench_places $prev_id
     local retval=$?
 
     # Check that the stepping of the previous elements
@@ -225,7 +273,7 @@ function loop_bench_places_step {
       # set it to equal the previous place.
       # Then we can just call us a gain.
       bench_places[$id]=${bench_places[$prev_id]}
-      loop_bench_places_step $id
+      loop_bench_places $id
       retval=$?
     fi
     return $retval
@@ -233,23 +281,6 @@ function loop_bench_places_step {
     let bench_places[$id]++
     return 0
   fi
-}
-
-function loop_bench_places {
-  local id
-
-  if [ ${#bench_places[@]} -eq 0 ]; then
-    # Setup the nested loop construct
-    for id in $(seq 1 $num_threads)
-    do
-      let id--
-      bench_places[$id]=$id
-    done
-    return 0
-  fi
-
-  loop_bench_places_step $((num_threads - 1))
-  return $?
 }
 
 function run_bench_places {
@@ -267,16 +298,21 @@ function run_bench_places {
     fi
     OMP_PLACES="$OMP_PLACES,{${place_proc_ids[$id]}}"
   done
+  # Remove initial ,
+  OMP_PLACES="${OMP_PLACES:1}"
+
+  if [[ -n "$DEBUG" ]]; then
+    echo >&2 "$_prefix_debug benchmark: OMP_PLACES=${OMP_PLACES}"
+  fi
 
   # Write out so it can be tabularized
-  # Remove initial `,`, then run!
-  OMP_PLACES="${OMP_PLACES:1}" $OMB_EXE ${_args[@]}
+  OMP_PLACES="${OMP_PLACES}" $OMB_EXE ${_args[@]}
   return $?
 }
 
 # Start our loop
-loop_bench_places
-while [ $? -eq 0 ]; do
+while :
+do
 
   run_bench_places
   retval=$?
@@ -289,7 +325,11 @@ while [ $? -eq 0 ]; do
   fi
 
   [ $_only_one -eq 1 ] && break
-  loop_bench_places
+  loop_bench_places $((num_threads - 1))
+  # Check if we should continue
+  [ $? -ne 0 ] && break
 done
+
+_debug_array bench_places "The final benchmark places"
 
 exit 0

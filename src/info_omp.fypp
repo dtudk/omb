@@ -68,6 +68,16 @@ contains
 
       write (OUTPUT_UNIT, FMT_OMB_A) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, FMT_OMB_I) "int_kind", ${OMB_INT_KIND}$
+      #:if defined("OMB_TIMING_SYSTEM_CLOCK")
+         write (OUTPUT_UNIT, FMT_OMB_A) "timing", "system_clock"
+      #:else
+         write (OUTPUT_UNIT, FMT_OMB_A) "timing", "omp_get_wtime"
+      #:endif
+      #:if defined('OMB_MPI')
+         write (OUTPUT_UNIT, FMT_OMB_A) "mpi_support", "yes"
+      #:else
+         write (OUTPUT_UNIT, FMT_OMB_A) "mpi_support", "no"
+      #:endif
 
       ! Generic system information
       write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_rate", timing_get_sys_rate()
