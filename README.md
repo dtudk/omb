@@ -111,8 +111,7 @@ Here are the most commonly used options for `omb`:
 | | E.g. `-n 2MB` (`kB`, `MB`, `GB` are allowed). |
 | `-it <count>` | Take the minimum timing out of this many iterations. |
 | `-dtype 32\|64\|128` | Use the data-type with this many bytes per element. |
-| `-kernel <name>` | Specify the OpenMP construct used in the benchmark. |
-| | Please see `omb --help` for available kernels. |
+| `-kernel <name>` | Specify the OpenMP construct used in the benchmark. <br> Please see `omb --help` for available kernels. |
 
 Besides the optional flags, the benchmark includes a large number of
 different methods. The default method to run the benchmark is the
@@ -167,13 +166,13 @@ OpenMP allows several ways to utilize parallelism.
 
 | Kernel | OpenMP construct |
 | ----- | ----- |
-| `do` | `parallel do` |
-| `do simd` | `parallel do simd` |
-| `workshare` | `parallel workshare` |
-| `loop` | `parallel loop` |
-| `taskloop` | <pre> parallel<br> single <br> taskloop </pre> |
-| `teams:distribute` | <pre> teams<br> distribute </pre> |
-| `teams:parallel` | <pre> teams<br> parallel do </pre> |
+| `do` | `!$omp parallel do` |
+| `do simd` | `!$omp parallel do simd` |
+| `workshare` | `!$omp parallel workshare` |
+| `loop` | `!$omp parallel loop` |
+| `taskloop` | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
+| `teams:distribute` | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
+| `teams:parallel` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
 
 Generally the `do` and `do simd` are *best*.
 The `teams` construct was mainly introduces to perform distributed
