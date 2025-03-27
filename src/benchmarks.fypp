@@ -153,19 +153,22 @@ contains
          #:endif
          type(options_t), intent(in) :: options
 
-!$omp ${OMB_OMP_MASKED}$
-         #:if ARRAY_IS_POINTER
-            nullify (a)
-         #:endif
-
          #:if not ARRAY_IS_STACK
-            ! Allocate etc.
-            allocate (a(n + options%offset))
-         #:endif
+!$omp ${OMB_OMP_MASKED}$
+            #:if ARRAY_IS_POINTER
+               nullify (a)
+            #:endif
+
+            #:if not ARRAY_IS_STACK
+               ! Allocate etc.
+               allocate (a(n + options%offset))
+            #:endif
 !$omp end ${OMB_OMP_MASKED}$
 
 ! Ensure we have it allocated before use
 !$omp barrier
+
+         #:endif
 
       end subroutine
 
