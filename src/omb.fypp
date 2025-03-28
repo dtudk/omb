@@ -151,6 +151,8 @@ program main
                allocate (option_kernel_workshare_t::options%kernel)
             case ("taskloop")
                allocate (option_kernel_taskloop_t::options%kernel)
+            case ("taskloop:simd")
+               allocate (option_kernel_taskloop_simd_t::options%kernel)
             case ("loop")
                allocate (option_kernel_loop_t::options%kernel)
             case ("teams:manual")
@@ -166,7 +168,7 @@ program main
             end select
 
             select type (kernel => options%kernel)
-            type is (option_kernel_taskloop_t)
+            class is (option_kernel_taskloop_t)
                kernel%num_tasks = num_tasks
             end select
 
@@ -545,7 +547,7 @@ program main
 
    ! In case the kernel is the taskloop, and the num_tasks is < 1, then
    select type (kernel => options%kernel)
-   type is (option_kernel_taskloop_t)
+   class is (option_kernel_taskloop_t)
       if (kernel%num_tasks < 1) then
          ! Decide a *good* number of tasks.
          ! For large counts of elements we should be able
@@ -583,7 +585,7 @@ program main
          write (OUTPUT_UNIT, "(a)") trim(name)
       end block
       select type (kernel => options%kernel)
-      type is (option_kernel_taskloop_t)
+      class is (option_kernel_taskloop_t)
          write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
       end select
       ! Important to use big_n
@@ -814,6 +816,7 @@ contains
       write (OUTPUT_UNIT, fmt_oa) "   lhs-realloc is explicitly prohibited by a(:) = ..."
       write (OUTPUT_UNIT, fmt_oa) " - taskloop[,num_tasks] -> use parallel taskloop clause"
       write (OUTPUT_UNIT, fmt_oa) "   default num_tasks lets each thread get ~10 tasks or tasks of min size 8"
+      write (OUTPUT_UNIT, fmt_oa) " - taskloop:simd[,num_tasks] -> use parallel taskloop simd clause"
       write (OUTPUT_UNIT, fmt_oa) " - teams:parallel -> abuse the teams parallel workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - loop -> abuse the loop workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"

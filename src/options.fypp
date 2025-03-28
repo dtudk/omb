@@ -71,6 +71,14 @@ module options_m
       integer(${OMB_INT_KIND}$) :: num_tasks = -1
    end type
 
+   !< Use the parallel taskloop simd construct.
+   !<
+   !< The taskloop simd construct adds an implicit taskgroup around.
+   !< We default to use this because it is required for reduction
+   !< operations.
+   type, public, extends(option_kernel_taskloop_t) :: option_kernel_taskloop_simd_t
+   end type
+
    !< Use the parallel loop construct.
    type, public, extends(option_kernel_t) :: option_kernel_loop_t
    end type
@@ -82,6 +90,9 @@ module options_m
    !< So the thread_limit is hardcoded to 1, and the num_teams is specified
    !< to be `num_threads`.
    !< Kind of abusing the teams constructs.
+   !<
+   !< All teams constructs lack a synchronization technique
+   !< because the barrier requires all threads in a team to participate.
    type, public, extends(option_kernel_t) :: option_kernel_teams_manual_t
    end type
 
@@ -92,6 +103,9 @@ module options_m
    !< So the thread_limit is hardcoded to 1, and the num_teams is specified
    !< to be `num_threads`.
    !< Kind of abusing the teams + distribute constructs.
+   !<
+   !< All teams constructs lack a synchronization technique
+   !< because the barrier requires all threads in a team to participate.
    type, public, extends(option_kernel_t) :: option_kernel_teams_distribute_t
    end type
 
@@ -100,6 +114,9 @@ module options_m
    !< This uses the teams (force-fully sets num_team=1) and then uses
    !< the threads to a worksharing clause using `parallel do`.
    !< Kind of abusing the teams construct.
+   !<
+   !< All teams constructs lack a synchronization technique
+   !< because the barrier requires all threads in a team to participate.
    type, public, extends(option_kernel_t) :: option_kernel_teams_parallel_t
    end type
 
@@ -124,6 +141,8 @@ contains
          name = "workshare"
       type is (option_kernel_taskloop_t)
          name = "taskloop"
+      type is (option_kernel_taskloop_simd_t)
+         name = "taskloop:simd"
       type is (option_kernel_loop_t)
          name = "loop"
       type is (option_kernel_teams_manual_t)
