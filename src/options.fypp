@@ -75,6 +75,16 @@ module options_m
    type, public, extends(option_kernel_t) :: option_kernel_loop_t
    end type
 
+   !< Use the teams construct and the initial team thread for parallelism.
+   !<
+   !< This is somewhat equivalent to the distribute. However,
+   !< it uses a manual segmentation of the loops.
+   !< So the thread_limit is hardcoded to 1, and the num_teams is specified
+   !< to be `num_threads`.
+   !< Kind of abusing the teams constructs.
+   type, public, extends(option_kernel_t) :: option_kernel_teams_manual_t
+   end type
+
    !< Use the teams distribute construct.
    !<
    !< This uses the distribute to utilize only the master threads
@@ -116,6 +126,8 @@ contains
          name = "taskloop"
       type is (option_kernel_loop_t)
          name = "loop"
+      type is (option_kernel_teams_manual_t)
+         name = "teams:manual"
       type is (option_kernel_teams_distribute_t)
          name = "teams:distribute"
       type is (option_kernel_teams_parallel_t)

@@ -153,6 +153,8 @@ program main
                allocate (option_kernel_taskloop_t::options%kernel)
             case ("loop")
                allocate (option_kernel_loop_t::options%kernel)
+            case ("teams:manual")
+               allocate (option_kernel_teams_manual_t::options%kernel)
             case ("teams:distribute")
                allocate (option_kernel_teams_distribute_t::options%kernel)
             case ("teams:parallel")
@@ -815,6 +817,7 @@ contains
       write (OUTPUT_UNIT, fmt_oa) " - teams:parallel -> abuse the teams parallel workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - loop -> abuse the loop workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:manual -> abuse the teams workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
       write (OUTPUT_UNIT, fmt_oa) "   expect poor perf. due to bad teams distribution."
       write (OUTPUT_UNIT, fmt_nl)
