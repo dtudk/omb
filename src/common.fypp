@@ -15,18 +15,3 @@
 #:endif
 
 #:set REALS = ["real32", "real64", "real128"]
-
-#:if defined("OMB_OMP_DEVICE")
-#:else
-   #:set OMB_OMP_DEVICE = 1
-#:endif
-
-#:if defined("OMB_OMP_TEAMS")
-#:else
-   #:set OMB_OMP_TEAMS = 1
-#:endif
-
-#:if defined("OMB_OMP_PARTITION")
-#:else
-   #:set OMB_OMP_PARTITION = 1
-#:endif

@@ -106,15 +106,19 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "^NVHPC")
   set(
     CMAKE_Fortran_FLAGS_RELEASE_INIT
     "-O3"
+    "-Kieee" # same as Intel: -fp-model strict
   )
   set(
     CMAKE_Fortran_FLAGS_FAST_INIT
+    "-O3"
     "-fast"
   )
   set(
     CMAKE_Fortran_FLAGS_DEBUG_INIT
     "-g"
     "-Og"
+    "-traceback"
+    "-Mbounds"
   )
 else()
   # unknown compiler (possibly)

@@ -1,0 +1,519 @@
+#:include "common.fypp"
+
+! Since we allow multiple variations of array definitions.
+! The complexity is hidden in the ARRAY_DEFINE method.
+#:def ARRAY_DEFINE(dtype, size, *names)
+   #:for name in names
+      #:if ARRAY_IS_STACK
+         real(${dtype}$) :: ${name}$ (${size}$)
+      #:else
+         real(${dtype}$), ${OMB_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: ${name}$ (:)
+      #:endif
+   #:endfor
+#:enddef ARRAY_DEFINE
+
+! Since we allow multiple variations of array definitions.
+! The complexity is hidden in the ARRAY_DEALLOC method.
+#:def ARRAY_DEALLOC(*names)
+   #:for name in names
+      #:if not ARRAY_IS_STACK
+         deallocate (${name}$)
+      #:endif
+   #:endfor
+#:enddef
+
+module check_triad_kernels_${OMB_CHECK_KERNEL}$_m
+
+   ! Define the different methods for benchmarks
+   use iso_fortran_env, only: real32, real64, real128
+   use iso_fortran_env, only: ${OMB_INT_KIND}$
+
+   use omp_lib
+
+   implicit none
+   private
+
+   integer, parameter :: N_IT = 10
+
+   interface array_allocate
+      #:for real in REALS
+         module procedure :: array_allocate_${real}$
+      #:endfor
+   end interface
+
+   interface first_touch_serial
+      #:for real in REALS
+         module procedure :: first_touch_serial_${real}$
+      #:endfor
+   end interface
+   interface first_touch_parallel
+      #:for real in REALS
+         module procedure :: first_touch_parallel_${real}$
+      #:endfor
+   end interface
+
+   interface init_array
+      #:for real in REALS
+         module procedure :: init_array_${real}$
+      #:endfor
+   end interface
+
+   character(len=*), parameter, private :: test_fmt = "(tr1,es17.9)"
+
+contains
+
+   #:for real in REALS
+
+      subroutine array_allocate_${real}$ (n, a)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         #:if ARRAY_IS_STACK
+            real(${real}$), intent(inout) :: a(n)
+         #:else
+            real(${real}$), dimension(:), intent(inout), ${OMB_ALLOC_TYPE}$ &
+               ${OMB_ARRAY_ATTRIBUTES}$ :: a
+         #:endif
+
+         #:if not ARRAY_IS_STACK
+!$omp ${OMB_OMP_MASKED}$
+            #:if ARRAY_IS_POINTER
+               nullify (a)
+            #:endif
+
+            #:if not ARRAY_IS_STACK
+               ! Allocate etc.
+               allocate (a(n))
+            #:endif
+!$omp end ${OMB_OMP_MASKED}$
+
+! Ensure we have it allocated before use
+!$omp barrier
+
+         #:endif
+
+      end subroutine
+
+      subroutine first_touch_parallel_${real}$ (n, a, v)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         real(${real}$), intent(inout) :: a(n)
+         real(${real}$), intent(in) :: v
+
+         integer(${OMB_INT_KIND}$) :: i
+
+!$omp do schedule(runtime) private(i)
+         do i = 1, n
+            a(i) = v
+         end do
+!$omp end do
+
+      end subroutine
+
+      subroutine first_touch_serial_${real}$ (n, a, v)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         real(${real}$), intent(inout) :: a(n)
+         real(${real}$), intent(in) :: v
+
+         integer(${OMB_INT_KIND}$) :: i
+
+!$omp ${OMB_OMP_MASKED}$
+         do i = 1, n
+            a(i) = v
+         end do
+!$omp end ${OMB_OMP_MASKED}$
+
+!$omp barrier
+
+      end subroutine
+
+      subroutine init_array_${real}$ (n, a, v)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         real(${real}$), intent(inout) :: a(n)
+         real(${real}$), intent(in) :: v
+
+         integer(${OMB_INT_KIND}$) :: i
+         real(${real}$) :: sum
+         integer :: it
+
+         call first_touch_parallel(n, a, v)
+
+         do it = 1, 1
+            sum = 0._${real}$
+            ! We can't do a reduction on the sum
+            ! variable, since it is an orphaned
+            ! method.
+!$omp do schedule(runtime) private(i,sum)
+            do i = 1, n
+               sum = sum + a(i)
+            end do
+!$omp end do
+         end do
+
+      end subroutine
+
+      ! Beginning of benchmark methods
+
+      #:if OMB_CHECK_KERNEL == "serial"
+         subroutine bug_triadd_serial_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+            do it = 1, N_IT
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+            end do
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "do"
+         subroutine bug_triadd_do_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp parallel default(none) &
+!$omp&  private(it,i) shared(n,a,b,c,scale)
+
+            do it = 1, N_IT
+
+!$omp do schedule(runtime) private(i)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end do
+
+            end do
+!$omp end parallel
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "do_simd"
+         subroutine bug_triadd_do_simd_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp parallel default(none) &
+!$omp&  private(it,i) shared(n,a,b,c,scale)
+
+            do it = 1, N_IT
+
+!$omp do simd schedule(runtime) private(i)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end do simd
+
+            end do
+!$omp end parallel
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "workshare"
+         subroutine bug_triadd_workshare_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp parallel default(none) &
+!$omp&  private(it) shared(a,b,c,scale)
+
+            do it = 1, N_IT
+
+!$omp workshare
+               a(:) = b(:) + scale*c(:)
+!$omp end workshare
+
+            end do
+
+!$omp end parallel
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "taskloop"
+         subroutine bug_triadd_taskloop_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp parallel default(none) &
+!$omp&  private(it,i) shared(n,a,b,c,scale)
+
+            do it = 1, N_IT
+
+!$omp single
+!$omp taskloop private(i) shared(n,a,b,c,scale)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end taskloop
+!$omp end single
+
+            end do
+!$omp end parallel
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "loop"
+         subroutine bug_triadd_loop_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp parallel default(none) &
+!$omp&  private(it,i) shared(n,a,b,c,scale)
+
+            do it = 1, N_IT
+
+!$omp loop private(i)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end loop
+
+            end do
+
+!$omp end parallel
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "teams_distribute"
+         subroutine bug_triadd_teams_distribute_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it, team, teams
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c,teams)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp ${OMB_OMP_MASKED}$
+            teams = omp_get_num_threads()
+!$omp end ${OMB_OMP_MASKED}$
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team) shared(n,a,b,c,scale) &
+!$omp&  num_teams(teams) thread_limit(1)
+
+            team = omp_get_team_num()
+
+            do it = 1, N_IT
+
+!$omp distribute dist_schedule(static) private(i)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end distribute
+
+            end do
+
+!$omp end teams
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+      #:if OMB_CHECK_KERNEL == "teams_parallel"
+         subroutine bug_triadd_teams_parallel_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it, team, threads
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c,threads)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp ${OMB_OMP_MASKED}$
+            threads = omp_get_num_threads()
+!$omp end ${OMB_OMP_MASKED}$
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp teams &
+!$omp&  default(none) &
+!$omp&  private(it,i,team) shared(n,a,b,c,scale) &
+!$omp&  num_teams(1) thread_limit(threads)
+
+            team = omp_get_team_num()
+
+            do it = 1, N_IT
+
+!$omp parallel do default(none) schedule(runtime) &
+!$omp&  private(i) shared(n,a,b,c,scale)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end parallel do
+
+            end do
+
+!$omp end teams
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
+   #:endfor
+
+end module

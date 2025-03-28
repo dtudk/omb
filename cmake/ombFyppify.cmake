@@ -13,6 +13,7 @@ execute_process(
   COMMAND "${OMB_FYPP}" --version
   RESULT_VARIABLE fypp_ret
   OUTPUT_VARIABLE fypp_stdout
+  ERROR_VARIABLE fypp_stdout
 )
 if( NOT ${fypp_ret} EQUAL 0 )
   CHECK_START("Checking Python + fypp")
@@ -29,6 +30,7 @@ if( NOT ${fypp_ret} EQUAL 0 )
       COMMAND "${Python_EXECUTABLE}" "${OMB_FYPP}" --version
       RESULT_VARIABLE fypp_ret
       OUTPUT_VARIABLE fypp_stdout
+      ERROR_VARIABLE fypp_stdout
     )
     if( ${fypp_ret} EQUAL 0 )
       set(OMB_FYPP "${Python_EXECUTABLE}" "${OMB_FYPP}")
@@ -64,10 +66,13 @@ function(omb_preprocess preproc preprocopts srcext trgext srcfiles trgfiles)
     string(REGEX REPLACE "\\.${srcext}$" ".${trgext}" trgfile ${srcfile})
 
     add_custom_command(
+      COMMENT "fyppifying file ${srcfile} -> ${trgfile}"
       OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${trgfile}"
       COMMAND ${preproc} ${preprocopts} "${CMAKE_CURRENT_SOURCE_DIR}/${srcfile}" "${CMAKE_CURRENT_BINARY_DIR}/${trgfile}"
-      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
       MAIN_DEPENDENCY "${CMAKE_CURRENT_SOURCE_DIR}/${srcfile}"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      # The VERBATIM keyword ensures we don't have to escape strings twice for fypp!
+      VERBATIM
     )
 
     # Collect files

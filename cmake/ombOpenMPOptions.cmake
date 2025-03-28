@@ -37,22 +37,8 @@ print * , omp_get_device_num()
 end")
 check_fortran_source_compiles("${source}" f_omp_device SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_device )
-if( NOT f_omp_device )
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_DEVICE=0")
-endif()
-
-CHECK_START("* has team information")
-set(source "
-use omp_lib
-!$omp parallel
-print * , omp_get_num_teams()
-print * , omp_get_team_num()
-!$omp end parallel
-end")
-check_fortran_source_compiles("${source}" f_omp_teams SRC_EXT f90)
-CHECK_PASS_FAIL( f_omp_teams )
-if( NOT f_omp_teams )
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TEAMS=0")
+if( f_omp_device )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_DEVICE")
 endif()
 
 CHECK_START("* has partition information")
@@ -64,8 +50,8 @@ print * , omp_get_partition_num_places()
 end")
 check_fortran_source_compiles("${source}" f_omp_partition SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_partition )
-if( NOT f_omp_partition )
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PARTITION=0")
+if( f_omp_partition )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PARTITION")
 endif()
 
 CHECK_START("* has masked construct (master deprecated since 5.1)")
@@ -80,12 +66,35 @@ end")
 check_fortran_source_compiles("${source}" f_omp_masked SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_masked )
 if( f_omp_masked )
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_MASKED=\"'masked'\"")
+  list(APPEND OMB_FYPP_FLAGS -DOMB_OMP_MASKED="masked")
 else()
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_MASKED=\"'master'\"")
+  list(APPEND OMB_FYPP_FLAGS -DOMB_OMP_MASKED="master")
 endif()
 
-CHECK_START("* has loop construct")
+CHECK_START("* has orphan construct")
+set(source "
+subroutine mysub(n, a)
+integer, intent(in) :: n
+real, intent(inout) :: a(n)
+integer :: i
+!$omp do private(i)
+do i = 1, 100
+   a(i) = i
+end do
+!$omp end do
+end
+
+program test
+real :: a(100)
+!$omp parallel shared(a)
+call mysub(100, a)
+!$omp end parallel
+print *, sum(a)
+end")
+check_fortran_source_compiles("${source}" f_omp_orphan SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_orphan REQUIRED )
+
+CHECK_START("* has CPU loop construct")
 set(source "
 real :: a(100)
 integer :: i
@@ -96,16 +105,98 @@ do i = 1, 100
 end do
 !$omp end loop
 !$omp end parallel
-print *, a(1)
+print *, sum(a)
 end")
-check_fortran_source_compiles("${source}" f_omp_loop SRC_EXT f90)
-CHECK_PASS_FAIL( f_omp_loop REQUIRED )
+check_fortran_source_compiles("${source}" f_omp_cpu_loop
+  SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_cpu_loop REQUIRED )
 
+CHECK_START("* has taskloop construct")
+set(source "
+real :: a(100)
+integer :: i
+!$omp parallel shared(a)
+!$omp single
+!$omp taskloop private(i)
+do i = 1, 100
+   a(i) = i
+end do
+!$omp end taskloop
+!$omp end single
+!$omp end parallel
+print *, sum(a)
+end")
+check_fortran_source_compiles("${source}" f_omp_taskloop SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_taskloop REQUIRED )
+if( f_omp_taskloop )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP")
+endif()
+
+CHECK_START("* has team information")
+set(source "
+use omp_lib
+!$omp parallel
+print * , omp_get_num_teams()
+print * , omp_get_team_num()
+!$omp end parallel
+end")
+check_fortran_source_compiles("${source}" f_omp_teams SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_teams REQUIRED )
+if( f_omp_teams )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TEAMS")
+
+  # Only check if teams is available
+  CHECK_START("* has CPU teams distribute construct")
+  set(source "
+use omp_lib
+real :: a(100)
+integer :: i, nt, team
+!$omp parallel
+!$omp single
+  nt = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+!$omp teams private(i,team) shared(a) num_teams(nt) thread_limit(1)
+team = omp_get_team_num()
+!$omp distribute dist_schedule(static) private(i)
+do i = 1, 100
+   a(i) = i
+end do
+!$omp end distribute
+!$omp end teams
+print *, sum(a)
+end")
+  check_fortran_source_compiles("${source}" f_omp_cpu_teams_distribute SRC_EXT f90)
+  CHECK_PASS_FAIL( f_omp_cpu_teams_distribute REQUIRED )
+
+  CHECK_START("* has CPU teams parallel construct")
+  set(source "
+use omp_lib
+real :: a(100)
+integer :: i, nt, team
+!$omp parallel
+!$omp single
+  nt = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+!$omp teams private(i,team) shared(a) num_teams(1) thread_limit(nt)
+team = omp_get_team_num()
+!$omp parallel do private(i) shared(a)
+do i = 1, 100
+   a(i) = i
+end do
+!$omp end parallel do
+!$omp end teams
+print *, sum(a)
+end")
+  check_fortran_source_compiles("${source}" f_omp_cpu_teams_parallel SRC_EXT f90)
+  CHECK_PASS_FAIL( f_omp_cpu_teams_parallel REQUIRED )
+
+endif()
 
 if( error_omb )
   message(FATAL_ERROR "Some OpenMP fortran features are not available, please select another compiler")
 endif()
-
 
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 cmake_pop_check_state()

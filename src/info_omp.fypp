@@ -284,7 +284,7 @@ contains
       flush OUTPUT_UNIT
 
       if (info_env%teams) then
-         #:if OMB_OMP_TEAMS > 0
+         #:if defined("OMB_OMP_TEAMS")
 !$omp teams
 
             call info_print_omp_teams()
@@ -371,7 +371,7 @@ contains
       integer :: n, thread
       integer :: proc_ids(MAX_THREADS)
 
-      #:if OMB_OMP_PARTITION > 0
+      #:if defined("OMB_OMP_PARTITION")
 
          n = omp_get_partition_num_places()
          call omp_get_partition_place_nums(proc_ids)
@@ -390,7 +390,7 @@ contains
 
    subroutine print_info_omp_devices()
 
-      #:if OMB_OMP_DEVICE > 0
+      #:if defined("OMB_OMP_DEVICE")
          write (OUTPUT_UNIT, FMT_i) "num_devices", omp_get_num_devices()
          write (OUTPUT_UNIT, FMT_i) "default_device", omp_get_default_device()
          write (OUTPUT_UNIT, FMT_i) "device_num", omp_get_device_num()
@@ -403,7 +403,7 @@ contains
       integer :: place_id
 
       ! Try and figure out how the teams construct would handle this
-      #:if OMB_OMP_TEAMS > 0
+      #:if defined("OMB_OMP_TEAMS")
 
          ! Get number of teams
          teams = omp_get_num_teams()

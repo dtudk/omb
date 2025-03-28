@@ -88,7 +88,7 @@ set_property(CACHE OMB_INT_KIND
   PROPERTY STRINGS int32 int64)
 
 # Append choice to fypp flags
-list(APPEND OMB_FYPP_FLAGS -DOMB_INT_KIND="'${OMB_INT_KIND}'")
+list(APPEND OMB_FYPP_FLAGS -DOMB_INT_KIND="${OMB_INT_KIND}")
 
 # Determine whether arrays should be allocated, or stack-bound
 set(OMB_ALLOC_TYPE "stack" CACHE STRING "How the arrays are constructed
@@ -97,7 +97,7 @@ set_property(CACHE OMB_ALLOC_TYPE
   PROPERTY STRINGS allocatable pointer stack)
 
 # Append choice to fypp flags
-list(APPEND OMB_FYPP_FLAGS -DOMB_ALLOC_TYPE="'${OMB_ALLOC_TYPE}'")
+list(APPEND OMB_FYPP_FLAGS -DOMB_ALLOC_TYPE="${OMB_ALLOC_TYPE}")
 
 
 # Now figure out how the tools should be used.
@@ -150,6 +150,15 @@ list(POP_BACK CMAKE_MESSAGE_INDENT)
 add_subdirectory(src)
 add_subdirectory(driver)
 
+option(OMB_CHECK_COMPILER
+  "Also compile some test files, simply to check for compiler bugs"
+  FALSE
+)
+mark_as_advanced(OMB_CHECK_COMPILER)
+if( OMB_CHECK_COMPILER )
+  message(STATUS "Also builds the separate kernels for a simple compiler check")
+  add_subdirectory(check_compiler)
+endif()
 
 # Globally define a place where we will install
 # cmake configuration stuff, *Target.cmake *Version.cmake etc.
