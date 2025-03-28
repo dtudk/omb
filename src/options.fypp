@@ -83,6 +83,10 @@ module options_m
    type, public, extends(option_kernel_t) :: option_kernel_loop_t
    end type
 
+   !< Global class for teams
+   type, public, extends(option_kernel_t) :: option_kernel_teams_t
+   end type
+
    !< Use the teams construct and the initial team thread for parallelism.
    !<
    !< This is somewhat equivalent to the distribute. However,
@@ -93,7 +97,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_t) :: option_kernel_teams_manual_t
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_manual_t
    end type
 
    !< Use the teams distribute construct.
@@ -106,7 +110,20 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_t) :: option_kernel_teams_distribute_t
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_distribute_t
+   end type
+
+   !< Use the teams distribute parallel do construct.
+   !<
+   !< This uses the distribute to utilize only the master threads
+   !< of each team to perform the computation.
+   !< So the thread_limit is hardcoded to 1, and the num_teams is specified
+   !< to be `num_threads`.
+   !< Kind of abusing the teams + distribute + parallel do constructs.
+   !<
+   !< All teams constructs lack a synchronization technique
+   !< because the barrier requires all threads in a team to participate.
+   type, public, extends(option_kernel_teams_distribute_t) :: option_kernel_teams_distribute_do_t
    end type
 
    !< Use the teams parallel do construct.
@@ -117,7 +134,18 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_t) :: option_kernel_teams_parallel_t
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_do_t
+   end type
+
+   !< Use the teams parallel loop construct.
+   !<
+   !< This uses the teams (force-fully sets num_team=1) and then uses
+   !< the threads to a worksharing clause using `parallel loop`.
+   !< Kind of abusing the teams construct.
+   !<
+   !< All teams constructs lack a synchronization technique
+   !< because the barrier requires all threads in a team to participate.
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_loop_t
    end type
 
 contains
@@ -149,8 +177,12 @@ contains
          name = "teams:manual"
       type is (option_kernel_teams_distribute_t)
          name = "teams:distribute"
-      type is (option_kernel_teams_parallel_t)
-         name = "teams:parallel"
+      type is (option_kernel_teams_distribute_do_t)
+         name = "teams:distribute:do"
+      type is (option_kernel_teams_do_t)
+         name = "teams:do"
+      type is (option_kernel_teams_loop_t)
+         name = "teams:loop"
       class default
          name = "<unset>"
       end select

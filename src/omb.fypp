@@ -53,10 +53,9 @@ program main
 
    ! We need to at least have each array size on the order of 4 times the cache size
    ! to move the entire array out and ensure no caching is there...
-   ! So, lets just take 512MB for safety.
-   ! This means that the total memory is 512MB of memory
+   ! So, lets just take 3GB for safety.
    real(real64), parameter :: bytes2MB = 1._real64/1024**2
-   real(real64) :: bytes = 512._real64*1024**2
+   real(real64) :: bytes = 3._real64*1024**3
    type(options_t) :: options
    type(results_t) :: results
 
@@ -159,8 +158,12 @@ program main
                allocate (option_kernel_teams_manual_t::options%kernel)
             case ("teams:distribute")
                allocate (option_kernel_teams_distribute_t::options%kernel)
-            case ("teams:parallel")
-               allocate (option_kernel_teams_parallel_t::options%kernel)
+            case ("teams:distribute:do")
+               allocate (option_kernel_teams_distribute_do_t::options%kernel)
+            case ("teams:do")
+               allocate (option_kernel_teams_do_t::options%kernel)
+            case ("teams:loop")
+               allocate (option_kernel_teams_loop_t::options%kernel)
             case default
                write (ERROR_UNIT, *) "The requested kernel does not exist?"
                write (ERROR_UNIT, *) " -kernel ", trim(arg)
@@ -805,7 +808,7 @@ contains
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
       write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory"
       write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB and GB."
-      write (OUTPUT_UNIT, fmt_oa) "Default is 512 MB."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 3 GB."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
@@ -817,12 +820,14 @@ contains
       write (OUTPUT_UNIT, fmt_oa) " - taskloop[,num_tasks] -> use parallel taskloop clause"
       write (OUTPUT_UNIT, fmt_oa) "   default num_tasks lets each thread get ~10 tasks or tasks of min size 8"
       write (OUTPUT_UNIT, fmt_oa) " - taskloop:simd[,num_tasks] -> use parallel taskloop simd clause"
-      write (OUTPUT_UNIT, fmt_oa) " - teams:parallel -> abuse the teams parallel workshare clause"
-      write (OUTPUT_UNIT, fmt_oa) " - loop -> abuse the loop workshare clause"
-      write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"
+      write (OUTPUT_UNIT, fmt_oa) " - loop -> use the parallel loop workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:do -> abuse the teams parallel do workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:loop-> abuse the teams parallel loop workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - teams:manual -> abuse the teams workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
       write (OUTPUT_UNIT, fmt_oa) "   expect poor perf. due to bad teams distribution."
+      write (OUTPUT_UNIT, fmt_oa) " - teams:distribute:do -> abuse the teams distribute parallel do workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"

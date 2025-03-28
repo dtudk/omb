@@ -172,13 +172,21 @@ OpenMP allows several ways to utilize parallelism.
 | `workshare` | `!$omp parallel workshare` |
 | `loop` | `!$omp parallel loop` |
 | `taskloop` | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
+| `taskloop:simd` | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop simd`</pre> |
+| `teams:manual` | `!$omp teams` |
 | `teams:distribute` | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
-| `teams:parallel` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
+| `teams:distribute:do` | <pre>`!$omp teams`<br>`!$omp distribute parallel do`</pre> |
+| `teams:do` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
+| `teams:loop` | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
 
 Generally the `do` and `do simd` are *best*.
 The `teams` construct was mainly introduces to perform distributed
-computations on GPU's due to its multi-level parallelism. However,
-it can be *abused* for CPU's as well.
+computations on GPU's due to its multi-level parallelism. For those `teams`
+constructs where there is no subsequent distribution on individual teams, there
+can happen incorrect results because those constructs does not have synchronization
+through OpenMP. I.e. barrier calls cannot work in a `teams` construct, only
+in a `teams ... parallel` where all threads of a team is participating.
+We have it here to showcase how `teams` can be *abused* for CPU's as well.
 There will be a *wide* spread of performance depending on the compiler
 used.
 
