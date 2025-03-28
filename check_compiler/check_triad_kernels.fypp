@@ -364,6 +364,52 @@ contains
          end subroutine
       #:endif
 
+      #:if OMB_CHECK_KERNEL == "taskloop_simd"
+         subroutine bug_triadd_taskloop_simd_${real}$ (n)
+            integer(${OMB_INT_KIND}$), intent(in) :: n
+
+            integer(${OMB_INT_KIND}$) :: i
+            integer :: it
+
+            real(${real}$) :: scale
+            @:ARRAY_DEFINE(${real}$, n, a, b, c)
+
+            scale = 2._${real}$
+
+!$omp parallel default(none) shared(n,a,b,c)
+            call array_allocate(n, a)
+            call array_allocate(n, b)
+            call array_allocate(n, c)
+            call init_array(n, a, 0.5_${real}$)
+            call init_array(n, b, 1.5_${real}$)
+            call init_array(n, c, 2.5_${real}$)
+!$omp end parallel
+
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+
+!$omp parallel default(none) &
+!$omp&  private(it,i) shared(n,a,b,c,scale)
+
+            do it = 1, N_IT
+
+!$omp single
+!$omp taskloop simd private(i) shared(n,a,b,c,scale)
+               do i = 1, n
+                  a(i) = b(i) + scale*c(i)
+               end do
+!$omp end taskloop simd
+!$omp end single
+
+            end do
+!$omp end parallel
+
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
+
+            @:ARRAY_DEALLOC(a, b, c)
+
+         end subroutine
+      #:endif
+
       #:if OMB_CHECK_KERNEL == "loop"
          subroutine bug_triadd_loop_${real}$ (n)
             integer(${OMB_INT_KIND}$), intent(in) :: n

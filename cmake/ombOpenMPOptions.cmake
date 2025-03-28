@@ -132,6 +132,27 @@ if( f_omp_taskloop )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP")
 endif()
 
+CHECK_START("* has taskloop simd construct")
+set(source "
+real :: a(100)
+integer :: i
+!$omp parallel shared(a)
+!$omp single
+!$omp taskloop simd private(i)
+do i = 1, 100
+   a(i) = i
+end do
+!$omp end taskloop simd
+!$omp end single
+!$omp end parallel
+print *, sum(a)
+end")
+check_fortran_source_compiles("${source}" f_omp_taskloop_simd SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_taskloop_simd REQUIRED )
+if( f_omp_taskloop_simd )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP_SIMD")
+endif()
+
 CHECK_START("* has team information")
 set(source "
 use omp_lib

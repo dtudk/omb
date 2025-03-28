@@ -6,6 +6,7 @@ set(triad_kernels
   do_simd
   workshare
   taskloop
+  taskloop_simd
   loop
   teams_distribute
   teams_parallel
