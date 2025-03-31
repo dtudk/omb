@@ -53,9 +53,10 @@ program main
 
    ! We need to at least have each array size on the order of 4 times the cache size
    ! to move the entire array out and ensure no caching is there...
-   ! So, lets just take 3GB for safety.
+   ! So, lets just take 4GB for safety.
    real(real64), parameter :: bytes2MB = 1._real64/1024**2
-   real(real64) :: bytes = 3._real64*1024**3
+   real(real64), parameter :: DEFAULT_BYTES = 4._real64*1024**3
+   real(real64) :: bytes = DEFAULT_BYTES
    type(options_t) :: options
    type(results_t) :: results
 
@@ -579,7 +580,7 @@ program main
       write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bytes]", elem_bytes
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", elem_bytes
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       block
@@ -776,6 +777,7 @@ contains
 
       character(len=*), parameter :: fmt_opt_a = "(t3,'--',a,t18,': ',a)"
       character(len=*), parameter :: fmt_oa = "(t18,'  ',a)"
+      character(len=*), parameter :: fmt_oafa = "(t18,'  ',a,tr1,f0.1,tr1,a)"
       character(len=*), parameter :: fmt_arg_a = "(t3,'  ',a,t18,': ',a)"
       character(len=*), parameter :: fmt_aa = "(t18,'  ',a)"
       character(len=*), parameter :: fmt_nl = "(a)"
@@ -808,7 +810,7 @@ contains
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
       write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory"
       write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB and GB."
-      write (OUTPUT_UNIT, fmt_oa) "Default is 3 GB."
+      write (OUTPUT_UNIT, fmt_oafa) "Default is", DEFAULT_BYTES/1024**3, "GB."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
@@ -851,7 +853,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "offset", "number of elements added to each array for offsetting allocations"
-      write (OUTPUT_UNIT, fmt_oa) "Default is 0 offset."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 0 elements."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "debug", "print-out additional debug information"
@@ -889,16 +891,16 @@ contains
          character(len=*), parameter :: fmt_col = "(t2,a,t15,' : ',a)"
 
          write (OUTPUT_UNIT, fmt_col) "METHOD", "name of the method running"
-         write (OUTPUT_UNIT, fmt_col) "KERNEL", "which kernel used in METHOD"
+         write (OUTPUT_UNIT, fmt_col) "KERNEL", "which OpenMP kernel used"
          write (OUTPUT_UNIT, fmt_col) "FIRST_TOUCH", "0 for master thread first-touch, 1 for distributed first-touch"
-         write (OUTPUT_UNIT, fmt_col) "ELEM_B", "number of bytes per element in the array"
-         write (OUTPUT_UNIT, fmt_col) "MEM_MB", "size of all allocated arrays, in MBytes"
-         write (OUTPUT_UNIT, fmt_col) "TIME_MIN", "minimum runtime of iterations, in seconds"
-         write (OUTPUT_UNIT, fmt_col) "TIME_AVG", "average runtime of iterations, in seconds"
-         write (OUTPUT_UNIT, fmt_col) "TIME_STD", "Bessel corrected standard deviation of runtime, in seconds"
-         write (OUTPUT_UNIT, fmt_col) "TIME_MAX", "maximum runtime of iterations, in seconds"
-         write (OUTPUT_UNIT, fmt_col) "BANDWIDTH_GBS", "maxmimum bandwidth in GBytes/s (using TIME_MIN)"
-         write (OUTPUT_UNIT, fmt_col) "GFLOPS", "maxmimum FLOPS in G/s (using TIME_MIN)"
+         write (OUTPUT_UNIT, fmt_col) "ELEM_B", "number of bytes per element in the array [B]"
+         write (OUTPUT_UNIT, fmt_col) "MEM_MB", "size of all allocated arrays [MB]"
+         write (OUTPUT_UNIT, fmt_col) "TIME_MIN", "minimum runtime of iterations [s]"
+         write (OUTPUT_UNIT, fmt_col) "TIME_AVG", "average runtime of iterations [s]"
+         write (OUTPUT_UNIT, fmt_col) "TIME_STD", "Bessel corrected standard deviation of runtime [s]"
+         write (OUTPUT_UNIT, fmt_col) "TIME_MAX", "maximum runtime of iterations [s]"
+         write (OUTPUT_UNIT, fmt_col) "BANDWIDTH_GBS", "maxmimum bandwidth using TIME_MIN [GB/s]"
+         write (OUTPUT_UNIT, fmt_col) "GFLOPS", "maxmimum FLOPS using TIME_MIN [G/s]"
       end block
 
    end subroutine

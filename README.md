@@ -147,13 +147,13 @@ The columns are described in this small box, `omb --help` will also show this in
 | `METHOD`        | name of the method running |
 | `KERNEL`        | which kernel used in `METHOD` |
 | `FIRST_TOUCH`   | 0 for master thread first-touch, 1 for distributed first-touch |
-| `ELEM_B`        | number of bytes per element in the array |
-| `MEM_MB`        | size of all allocated arrays, in [MBytes] |
+| `ELEM_B`        | number of bytes per element in the array [B] |
+| `MEM_MB`        | size of all allocated arrays, in [MB] |
 | `TIME_MIN`      | minimum runtime of iterations [s] |
 | `TIME_AVG`      | average runtime of iterations [s] |
 | `TIME_STD`      | Bessel corrected standard deviation of runtime [s] |
 | `TIME_MAX`      | maximum runtime of iterations [s] |
-| `BANDWIDTH_GBS` | maxmimum bandwidth using `TIME_MIN` [Gbytes/s] |
+| `BANDWIDTH_GBS` | maxmimum bandwidth using `TIME_MIN` [GB/s] |
 | `GFLOPS`        | maxmimum FLOPS using `TIME_MIN` [G/s] |
 
 
