@@ -270,131 +270,137 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,options,results,timing) &
 !$omp&  reduction(+:sum_a) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  sum_a = sum_a + a(i)
+                  do i = istart, iend
+                     sum_a = sum_a + a(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,options,results,timing) &
 !$omp&  reduction(+:sum_a) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  sum_a = sum_a + a(i)
-               end do
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,sum_a,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i) &
 !$omp&  reduction(+:sum_a)
-               do i = 1, n
-                  sum_a = sum_a + a(i)
-               end do
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,sum_a,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a) reduction(+:sum_a)
-               do i = 1, n
-                  sum_a = sum_a + a(i)
-               end do
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,sum_a,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,sum_a)
 !$omp loop private(i) reduction(+:sum_a)
-               do i = 1, n
-                  sum_a = sum_a + a(i)
-               end do
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -430,25 +436,27 @@ contains
                   sum_a = sum(a)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a) reduction(+:sum_a) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     sum_a = sum_a + a(i)
-                  end do
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a) reduction(+:sum_a) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     sum_a = sum_a + a(i)
-                  end do
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i) reduction(+:sum_a)
@@ -516,128 +524,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,fill,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = fill
+                  do i = istart, iend
+                     a(i) = fill
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,fill,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = fill
-               end do
+                     do i = 1, n
+                        a(i) = fill
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,fill,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = fill
-               end do
+                     do i = 1, n
+                        a(i) = fill
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,fill,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,fill)
-               do i = 1, n
-                  a(i) = fill
-               end do
+                     do i = 1, n
+                        a(i) = fill
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,fill,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,fill)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = fill
-               end do
+                     do i = 1, n
+                        a(i) = fill
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -673,25 +687,27 @@ contains
                   a(:) = fill
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,fill) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = fill
-                  end do
+                     do i = 1, n
+                        a(i) = fill
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,fill) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = fill
-                  end do
+                     do i = 1, n
+                        a(i) = fill
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -758,128 +774,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,b,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = b(i)
+                  do i = istart, iend
+                     a(i) = b(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,b)
-               do i = 1, n
-                  a(i) = b(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,b)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = b(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -915,25 +937,27 @@ contains
                   a(:) = b(:)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,b) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,b) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -1003,128 +1027,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = scale*b(i)
+                  do i = istart, iend
+                     a(i) = scale*b(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,b,scale)
-               do i = 1, n
-                  a(i) = scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,b,scale)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -1160,25 +1190,27 @@ contains
                   a(:) = scale*b(:)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,b,scale) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = scale*b(i)
-                  end do
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,b,scale) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = scale*b(i)
-                  end do
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -1247,128 +1279,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,b,c,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = b(i) + c(i)
+                  do i = istart, iend
+                     a(i) = b(i) + c(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i) + c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i) + c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,b,c)
-               do i = 1, n
-                  a(i) = b(i) + c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,b,c)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = b(i) + c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -1404,25 +1442,27 @@ contains
                   a(:) = b(:) + c(:)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,b,c) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i) + c(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,b,c) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i) + c(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -1494,128 +1534,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = b(i) + scale*c(i)
+                  do i = istart, iend
+                     a(i) = b(i) + scale*c(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i) + scale*c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i) + scale*c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,b,c,scale)
-               do i = 1, n
-                  a(i) = b(i) + scale*c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,b,c,scale)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = b(i) + scale*c(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -1651,25 +1697,27 @@ contains
                   a(:) = b(:) + scale*c(:)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,b,c,scale) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i) + scale*c(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,b,c,scale) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i) + scale*c(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -1740,128 +1788,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = b(i) + c(i)*d(i)
+                  do i = istart, iend
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i) + c(i)*d(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = b(i) + c(i)*d(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,b,c,d)
-               do i = 1, n
-                  a(i) = b(i) + c(i)*d(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,b,c,d)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = b(i) + c(i)*d(i)
-               end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -1897,25 +1951,27 @@ contains
                   a(:) = b(:) + c(:)*d(:)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,b,c,d) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i) + c(i)*d(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,b,c,d) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = b(i) + c(i)*d(i)
-                  end do
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -1985,128 +2041,134 @@ contains
                call timing%stop(results%times(it))
             end do
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,istart,iend) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
-            call manual_split(n, istart, iend, in_teams=.true.)
+               call manual_split(n, istart, iend, in_teams=.true.)
 
-            team = omp_get_team_num()
+               team = omp_get_team_num()
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = istart, iend
-                  a(i) = a(i) + scale*b(i)
+                  do i = istart, iend
+                     a(i) = a(i) + scale*b(i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = a(i) + scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static) private(i)
-               do i = 1, n
-                  a(i) = a(i) + scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel do default(none) schedule(runtime) &
 !$omp&  private(i) shared(n,a,b,scale)
-               do i = 1, n
-                  a(i) = a(i) + scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
 !$omp end parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_loop_t)
+                  type is (option_kernel_teams_loop_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team) shared(n,a,b,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            team = omp_get_team_num()
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i) shared(n,a,b,scale)
 !$omp loop private(i)
-               do i = 1, n
-                  a(i) = a(i) + scale*b(i)
-               end do
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
 !$omp end loop
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -2142,25 +2204,27 @@ contains
                   a(:) = a(:) + scale*b(:)
 !$omp end workshare
 
-                  @:TYPE_IS(option_kernel_taskloop_t)
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(option_kernel_taskloop_t)
 !$omp single
 !$omp taskloop private(i) shared(n,a,b,scale) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = a(i) + scale*b(i)
-                  end do
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
 !$omp end taskloop
 !$omp end single
 
-                  @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(option_kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd private(i) shared(n,a,b,scale) &
 !$omp&  num_tasks(kernel%num_tasks)
-                  do i = 1, n
-                     a(i) = a(i) + scale*b(i)
-                  end do
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
 !$omp end taskloop simd
 !$omp end single
+                  #:endif
 
                   @:TYPE_IS(option_kernel_loop_t)
 !$omp loop private(i)
@@ -2237,111 +2301,117 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! This kernel uses each teams main thread (only 1 thread per team)
-            team = omp_get_team_num()
-            id = team + 1
+               ! This kernel uses each teams main thread (only 1 thread per team)
+               team = omp_get_team_num()
+               id = team + 1
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = 1, n
-                  a(id, i) = b(id, i) + scale*c(id, i)
+                  do i = 1, n
+                     a(id, i) = b(id, i) + scale*c(id, i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! This kernel uses each teams main thread (only 1 thread per team)
-            team = omp_get_team_num()
+                  ! This kernel uses each teams main thread (only 1 thread per team)
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static,1) private(i,id)
-               do id = 1, omp_get_num_teams()
-                  do i = 1, n
-                     a(id, i) = b(id, i) + scale*c(id, i)
-                  end do
-               end do
+                     do id = 1, omp_get_num_teams()
+                        do i = 1, n
+                           a(id, i) = b(id, i) + scale*c(id, i)
+                        end do
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! This kernel uses each teams main thread (only 1 thread per team)
-            team = omp_get_team_num()
+                  ! This kernel uses each teams main thread (only 1 thread per team)
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static,1) private(i,id)
-               do id = 1, omp_get_num_teams()
-                  do i = 1, n
-                     a(id, i) = b(id, i) + scale*c(id, i)
-                  end do
-               end do
+                     do id = 1, omp_get_num_teams()
+                        do i = 1, n
+                           a(id, i) = b(id, i) + scale*c(id, i)
+                        end do
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,scale,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            ! This kernel uses one team, and then distributes
-            ! threads in the team in the parallel
-            team = omp_get_team_num()
+                  ! This kernel uses one team, and then distributes
+                  ! threads in the team in the parallel
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i,id) shared(n,a,b,c,scale)
-               id = omp_get_thread_num() + 1
-               do i = 1, n
-                  a(id, i) = b(id, i) + scale*c(id, i)
-               end do
+                     id = omp_get_thread_num() + 1
+                     do i = 1, n
+                        a(id, i) = b(id, i) + scale*c(id, i)
+                     end do
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 
@@ -2433,111 +2503,117 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_teams_manual_t)
+            #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+               type is (option_kernel_teams_manual_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! This kernel uses each teams main thread (only 1 thread per team)
-            team = omp_get_team_num()
-            id = team + 1
+               ! This kernel uses each teams main thread (only 1 thread per team)
+               team = omp_get_team_num()
+               id = team + 1
 
-            do it = 1, options%it
+               do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                  @:START_TIMING(in_teams=1)
 
-               do i = 1, n
-                  a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                  do i = 1, n
+                     a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
                end do
-
-               @:STOP_TIMING(results%times(it), in_teams=1)
-
-            end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_t)
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (option_kernel_teams_distribute_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! This kernel uses each teams main thread (only 1 thread per team)
-            team = omp_get_team_num()
+                  ! This kernel uses each teams main thread (only 1 thread per team)
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute dist_schedule(static) private(i,id)
-               do id = 1, omp_get_num_teams()
-                  do i = 1, n
-                     a(id, i) = b(id, i) + c(id, i)*d(id, i)
-                  end do
-               end do
+                     do id = 1, omp_get_num_teams()
+                        do i = 1, n
+                           a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                        end do
+                     end do
 !$omp end distribute
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
 
-         type is (option_kernel_teams_distribute_do_t)
+                  type is (option_kernel_teams_distribute_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
-            ! This kernel uses each teams main thread (only 1 thread per team)
-            team = omp_get_team_num()
+                  ! This kernel uses each teams main thread (only 1 thread per team)
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp distribute parallel do dist_schedule(static,1) private(i,id)
-               do id = 1, omp_get_num_teams()
-                  do i = 1, n
-                     a(id, i) = b(id, i) + c(id, i)*d(id, i)
-                  end do
-               end do
+                     do id = 1, omp_get_num_teams()
+                        do i = 1, n
+                           a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                        end do
+                     end do
 !$omp end distribute parallel do
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
 
-         type is (option_kernel_teams_do_t)
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (option_kernel_teams_do_t)
 !$omp teams &
 !$omp&  default(none) &
 !$omp&  private(it,i,team,id) shared(n,a,b,c,d,options,results,timing) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
-            ! This kernel uses one team, and then distributes
-            ! threads in the team in the parallel
-            team = omp_get_team_num()
+                  ! This kernel uses one team, and then distributes
+                  ! threads in the team in the parallel
+                  team = omp_get_team_num()
 
-            do it = 1, options%it
+                  do it = 1, options%it
 
-               @:START_TIMING(in_teams=1)
+                     @:START_TIMING(in_teams=1)
 
 !$omp parallel default(none) &
 !$omp&  private(i,id) shared(n,a,b,c,d)
-               id = omp_get_thread_num() + 1
-               do i = 1, n
-                  a(id, i) = b(id, i) + c(id, i)*d(id, i)
-               end do
+                     id = omp_get_thread_num() + 1
+                     do i = 1, n
+                        a(id, i) = b(id, i) + c(id, i)*d(id, i)
+                     end do
 !$omp end parallel
 
-               @:STOP_TIMING(results%times(it), in_teams=1)
+                     @:STOP_TIMING(results%times(it), in_teams=1)
 
-            end do
+                  end do
 
 !$omp end teams
+               #:endif
+            #:endif
 
          class default
 

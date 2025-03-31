@@ -127,12 +127,11 @@ end do
 print *, sum(a)
 end")
 check_fortran_source_compiles("${source}" f_omp_taskloop SRC_EXT f90)
-CHECK_PASS_FAIL( f_omp_taskloop REQUIRED )
+CHECK_PASS_FAIL( f_omp_taskloop )
 if( f_omp_taskloop )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP")
-endif()
 
-CHECK_START("* has taskloop simd construct")
+  CHECK_START("* has taskloop simd construct")
 set(source "
 real :: a(100)
 integer :: i
@@ -147,23 +146,27 @@ end do
 !$omp end parallel
 print *, sum(a)
 end")
-check_fortran_source_compiles("${source}" f_omp_taskloop_simd SRC_EXT f90)
-CHECK_PASS_FAIL( f_omp_taskloop_simd REQUIRED )
-if( f_omp_taskloop_simd )
-  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP_SIMD")
+  check_fortran_source_compiles("${source}" f_omp_taskloop_simd SRC_EXT f90)
+  CHECK_PASS_FAIL( f_omp_taskloop_simd REQUIRED )
+  if( f_omp_taskloop_simd )
+    list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP_SIMD")
+  endif()
 endif()
 
-CHECK_START("* has team information")
+CHECK_START("* has CPU teams construct")
 set(source "
 use omp_lib
 !$omp parallel
 print * , omp_get_num_teams()
 print * , omp_get_team_num()
 !$omp end parallel
+!$omp teams
+print *, omp_get_team_num()
+!$omp end teams
 end")
-check_fortran_source_compiles("${source}" f_omp_teams SRC_EXT f90)
-CHECK_PASS_FAIL( f_omp_teams REQUIRED )
-if( f_omp_teams )
+check_fortran_source_compiles("${source}" f_omp_cpu_teams SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_cpu_teams )
+if( f_omp_cpu_teams )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TEAMS")
 
   # Only check if teams is available
@@ -188,7 +191,10 @@ end do
 print *, sum(a)
 end")
   check_fortran_source_compiles("${source}" f_omp_cpu_teams_distribute SRC_EXT f90)
-  CHECK_PASS_FAIL( f_omp_cpu_teams_distribute REQUIRED )
+  CHECK_PASS_FAIL( f_omp_cpu_teams_distribute )
+  if( f_omp_cpu_teams_distribute )
+    list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TEAMS_DISTRIBUTE")
+  endif()
 
   CHECK_START("* has CPU teams parallel construct")
   set(source "
@@ -211,7 +217,10 @@ end do
 print *, sum(a)
 end")
   check_fortran_source_compiles("${source}" f_omp_cpu_teams_parallel SRC_EXT f90)
-  CHECK_PASS_FAIL( f_omp_cpu_teams_parallel REQUIRED )
+  CHECK_PASS_FAIL( f_omp_cpu_teams_parallel )
+  if( f_omp_cpu_teams_parallel )
+    list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TEAMS_PARALLEL")
+  endif()
 
 endif()
 
