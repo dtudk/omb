@@ -65,6 +65,17 @@ print * , omp_get_num_threads()
 end")
 check_fortran_source_compiles("${source}" f_omp_masked SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_masked )
+
+# In case we have nvfortran < 26, we won't allow masked
+# It merely states the *masked* construct as a warning, not a
+# compilation error.
+if(CMAKE_Fortran_COMPILER_ID MATCHES "^NVHPC")
+  if(CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 26)
+    message(STATUS "  nvfortran compiles omp masked construct, but does not support it")
+    message(STATUS "    forcefully disabling it")
+    set( f_omp_masked FALSE)
+  endif()
+endif()
 if( f_omp_masked )
   list(APPEND OMB_FYPP_FLAGS -DOMB_OMP_MASKED="masked")
 else()

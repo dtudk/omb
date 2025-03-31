@@ -10,23 +10,45 @@ list(APPEND CMAKE_MESSAGE_INDENT "  ")
 # these flags.
 # Some compilers may have these details.
 
-# Whether we should use the iso_fortran_env for data-types
-
-CHECK_START("* has iso_fortran_env")
-# Check that iso_fortran_env is present
+CHECK_START("* has iso_fortran_env: int32, int64")
 set(source "
-use, intrinsic :: iso_fortran_env, only : real64, int32, real128
-real(real64) :: x
-x = x+1._real64
+use, intrinsic :: iso_fortran_env, only : int32, int64
+integer(int32) :: i32
+integer(int64) :: i64
+i32 = 1
+i64 = 1
+print *, i32, i64
 end")
-check_fortran_source_compiles("${source}" f_iso_fortran_env SRC_EXT f90)
-CHECK_PASS_FAIL( f_iso_fortran_env REQUIRED)
+check_fortran_source_compiles("${source}" f_iso_fortran_env_int SRC_EXT f90)
+CHECK_PASS_FAIL( f_iso_fortran_env_int REQUIRED )
+
+CHECK_START("* has iso_fortran_env: real${prec}")
+macro(check_real prec)
+set(source "
+use, intrinsic :: iso_fortran_env, only : real${prec}
+real(real${prec}) :: r
+r = 1.
+print *, sin(r)
+end")
+check_fortran_source_compiles("${source}" f_iso_fortran_env_${prec} SRC_EXT f90)
+CHECK_PASS_FAIL( f_iso_fortran_env_${prec} QUIET ${ARGN} )
+endmacro()
+
+# Check all the real* variants from iso_fortran_env
+check_real(16)
+check_real(32 REQUIRED)
+check_real(64 REQUIRED)
+check_real(128)
+list(POP_BACK CMAKE_MESSAGE_INDENT)
 
 
 CHECK_START("* has CONTIGUOUS")
 # Check that the contiguous attribute works
 set(source "
-real, pointer, contiguous :: x(:)
+real, pointer, contiguous :: x(:) => null()
+allocate(x(100))
+x = 1
+print *, sum(x)
 end")
 check_fortran_source_compiles("${source}" f_contiguous SRC_EXT f90)
 CHECK_PASS_FAIL( f_contiguous )
@@ -40,9 +62,12 @@ end type
 type, extends(options_t) :: options_1_t
 integer :: i
 end type
+type(options_1_t) :: t
+t%i = 1
+print *, t%i
 end")
 check_fortran_source_compiles("${source}" f_oop SRC_EXT f90)
-CHECK_PASS_FAIL( f_oop REQUIRED)
+CHECK_PASS_FAIL( f_oop REQUIRED )
 
 
 if( error_omb )

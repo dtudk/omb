@@ -9,10 +9,10 @@
 ! we should remove this problem *fingers crossed*
 #:def START_TIMING(in_teams=0)
    #:if in_teams == 0
-      !$omp barrier
-      !$omp ${OMB_OMP_MASKED}$
+!$omp barrier
+!$omp ${OMB_OMP_MASKED}$
       call timing%start()
-      !$omp end ${OMB_OMP_MASKED}$
+!$omp end ${OMB_OMP_MASKED}$
    #:else
       if (team == 0) then
          call timing%start()
@@ -22,10 +22,10 @@
 
 #:def STOP_TIMING(var, in_teams=0)
    #:if in_teams == 0
-      !$omp barrier
-      !$omp ${OMB_OMP_MASKED}$
+!$omp barrier
+!$omp ${OMB_OMP_MASKED}$
       call timing%stop(${var}$)
-      !$omp end ${OMB_OMP_MASKED}$
+!$omp end ${OMB_OMP_MASKED}$
    #:else
       call timing%stop(${var}$)
    #:endif

@@ -90,6 +90,9 @@ contains
    subroutine print_info_omp(info_env)
       type(info_env_t), intent(in) :: info_env
 
+      integer(OMP_PROC_BIND_KIND) :: proc_bind
+      integer(OMP_SCHED_KIND) :: sched
+      integer :: chunk
       character(len=2048) :: affinity_fmt, string
       integer :: n, i
       integer :: thread, io_thread
@@ -194,48 +197,41 @@ contains
          write (OUTPUT_UNIT, FMT_a) "cancellation", "false"
       end if
 
-      block
-         integer(OMP_PROC_BIND_KIND) :: proc_bind
+      ! Sadly, nvfortran does not implement block
+      ! constructs in single...
+      proc_bind = omp_get_proc_bind()
+      select case (proc_bind)
+      case (OMP_PROC_BIND_FALSE)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "false"
+      case (OMP_PROC_BIND_TRUE)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "true"
+      case (OMP_PROC_BIND_MASTER)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "master"
+      case (OMP_PROC_BIND_CLOSE)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "close"
+      case (OMP_PROC_BIND_SPREAD)
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "spread"
+      case default
+         write (OUTPUT_UNIT, FMT_i) "proc_bind", proc_bind
+      end select
 
-         proc_bind = omp_get_proc_bind()
-         select case (proc_bind)
-         case (OMP_PROC_BIND_FALSE)
-            write (OUTPUT_UNIT, FMT_a) "proc_bind", "false"
-         case (OMP_PROC_BIND_TRUE)
-            write (OUTPUT_UNIT, FMT_a) "proc_bind", "true"
-         case (OMP_PROC_BIND_MASTER)
-            write (OUTPUT_UNIT, FMT_a) "proc_bind", "master"
-         case (OMP_PROC_BIND_CLOSE)
-            write (OUTPUT_UNIT, FMT_a) "proc_bind", "close"
-         case (OMP_PROC_BIND_SPREAD)
-            write (OUTPUT_UNIT, FMT_a) "proc_bind", "spread"
-         case default
-            write (OUTPUT_UNIT, FMT_i) "proc_bind", proc_bind
-         end select
-      end block
-
-      block
-         integer(OMP_SCHED_KIND) :: sched
-         integer :: chunk
-
-         ! Write out scheduling information
-         call omp_get_schedule(sched, chunk)
-         select case (sched)
-         case (OMP_SCHED_STATIC)
-            write (OUTPUT_UNIT, FMT_a) "schedule", "static"
-         case (OMP_SCHED_DYNAMIC)
-            write (OUTPUT_UNIT, FMT_a) "schedule", "dynamic"
-         case (OMP_SCHED_GUIDED)
-            write (OUTPUT_UNIT, FMT_a) "schedule", "guided"
-         case (OMP_SCHED_AUTO)
-            write (OUTPUT_UNIT, FMT_a) "schedule", "auto"
-            !case ( OMP_SCHED_MONOTONIC )
-            !   write(OUTPUT_UNIT,FMT_a) "omp schedule", "monotonic"
-         case default
-            write (OUTPUT_UNIT, FMT_i) "schedule", sched
-         end select
-         write (OUTPUT_UNIT, FMT_i) "schedule_chunk", chunk
-      end block
+      ! Write out scheduling information
+      call omp_get_schedule(sched, chunk)
+      select case (sched)
+      case (OMP_SCHED_STATIC)
+         write (OUTPUT_UNIT, FMT_a) "schedule", "static"
+      case (OMP_SCHED_DYNAMIC)
+         write (OUTPUT_UNIT, FMT_a) "schedule", "dynamic"
+      case (OMP_SCHED_GUIDED)
+         write (OUTPUT_UNIT, FMT_a) "schedule", "guided"
+      case (OMP_SCHED_AUTO)
+         write (OUTPUT_UNIT, FMT_a) "schedule", "auto"
+         !case ( OMP_SCHED_MONOTONIC )
+         !   write(OUTPUT_UNIT,FMT_a) "omp schedule", "monotonic"
+      case default
+         write (OUTPUT_UNIT, FMT_i) "schedule", sched
+      end select
+      write (OUTPUT_UNIT, FMT_i) "schedule_chunk", chunk
 
       write (OUTPUT_UNIT, FMT_i) "max_task_priority", omp_get_max_task_priority()
 

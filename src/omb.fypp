@@ -663,7 +663,7 @@ program main
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_max()
          write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%bandwidth_gbs()
          write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%gflops()
-         write (OUTPUT_UNIT, "(a)") ""
+         write (OUTPUT_UNIT, "(a)") ! line-break
 
          flush OUTPUT_UNIT
 
@@ -792,7 +792,6 @@ contains
 
       ! Get executable name
       call get_command_argument(0, arg, length=len_arg)
-      write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, '(2a)') "OpenMP benchmark program: ", trim(arg)
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program written in fortran."
