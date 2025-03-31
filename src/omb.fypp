@@ -161,9 +161,9 @@ program main
                allocate (option_kernel_teams_distribute_t::options%kernel)
             case ("teams:distribute:do")
                allocate (option_kernel_teams_distribute_do_t::options%kernel)
-            case ("teams:do")
+            case ("teams:parallel:do")
                allocate (option_kernel_teams_do_t::options%kernel)
-            case ("teams:loop")
+            case ("teams:parallel:loop")
                allocate (option_kernel_teams_loop_t::options%kernel)
             case default
                write (ERROR_UNIT, *) "The requested kernel does not exist?"
@@ -823,8 +823,8 @@ contains
       write (OUTPUT_UNIT, fmt_oa) "   default num_tasks lets each thread get ~10 tasks or tasks of min size 8"
       write (OUTPUT_UNIT, fmt_oa) " - taskloop:simd[,num_tasks] -> use parallel taskloop simd clause"
       write (OUTPUT_UNIT, fmt_oa) " - loop -> use the parallel loop workshare clause"
-      write (OUTPUT_UNIT, fmt_oa) " - teams:do -> abuse the teams parallel do workshare clause"
-      write (OUTPUT_UNIT, fmt_oa) " - teams:loop-> abuse the teams parallel loop workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:do -> abuse the teams parallel do workshare clause"
+      write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:loop-> abuse the teams parallel loop workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - teams:manual -> abuse the teams workshare clause"
       write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
       write (OUTPUT_UNIT, fmt_oa) "   expect poor perf. due to bad teams distribution."

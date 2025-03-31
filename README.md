@@ -173,8 +173,8 @@ OpenMP allows several ways to utilize parallelism.
 | `teams:manual` | `!$omp teams` |
 | `teams:distribute` | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
 | `teams:distribute:do` | <pre>`!$omp teams`<br>`!$omp distribute parallel do`</pre> |
-| `teams:do` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
-| `teams:loop` | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
+| `teams:parallel:do` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
+| `teams:parallel:loop` | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
 
 The `teams` construct was mainly introduced in OpenMP to perform distributed
 computations on GPU's due to its multi-level parallelism. For those `teams`

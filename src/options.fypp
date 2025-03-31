@@ -180,9 +180,9 @@ contains
       type is (option_kernel_teams_distribute_do_t)
          name = "teams:distribute:do"
       type is (option_kernel_teams_do_t)
-         name = "teams:do"
+         name = "teams:parallel:do"
       type is (option_kernel_teams_loop_t)
-         name = "teams:loop"
+         name = "teams:parallel:loop"
       class default
          name = "<unset>"
       end select
