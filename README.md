@@ -139,25 +139,22 @@ As an example lets invoke `omb` with
 
 ```shell
 $> OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb triad -kernel do:simd -it 10 -n 20MB
-```
-The output will look something like this:
-```shell
  triad do:simd 1 8   1.99999924E+01   5.18938001E-04   6.45935400E-04   1.15988655E-08   8.63896001E-04  37.63694799E+00   3.36769710E+00
 ```
-The columns is described in this small box, `omb --help` will also show this information.
+The columns are described in this small box, `omb --help` will also show this information.
 | Short name | Description |
 | ---- | ------ |
 | `METHOD`        | name of the method running |
 | `KERNEL`        | which kernel used in `METHOD` |
 | `FIRST_TOUCH`   | 0 for master thread first-touch, 1 for distributed first-touch |
 | `ELEM_B`        | number of bytes per element in the array |
-| `MEM_MB`        | size of all allocated arrays, in MBytes |
-| `TIME_MIN`      | minimum runtime of iterations, in seconds |
-| `TIME_AVG`      | average runtime of iterations, in seconds |
-| `TIME_STD`      | Bessel corrected standard deviation of runtime, in seconds |
-| `TIME_MAX`      | maximum runtime of iterations, in seconds |
-| `BANDWIDTH_GBS` | maxmimum bandwidth in GBytes/s (using `TIME_MIN`) |
-| `GFLOPS`        | maxmimum FLOPS in G/s (using `TIME_MIN`) |
+| `MEM_MB`        | size of all allocated arrays, in [MBytes] |
+| `TIME_MIN`      | minimum runtime of iterations [s] |
+| `TIME_AVG`      | average runtime of iterations [s] |
+| `TIME_STD`      | Bessel corrected standard deviation of runtime [s] |
+| `TIME_MAX`      | maximum runtime of iterations [s] |
+| `BANDWIDTH_GBS` | maxmimum bandwidth using `TIME_MIN` [Gbytes/s] |
+| `GFLOPS`        | maxmimum FLOPS using `TIME_MIN` [G/s] |
 
 
 ### Kernels
@@ -179,12 +176,11 @@ OpenMP allows several ways to utilize parallelism.
 | `teams:do` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
 | `teams:loop` | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
 
-Generally the `do` and `do simd` are *best*.
-The `teams` construct was mainly introduces to perform distributed
+The `teams` construct was mainly introduced in OpenMP to perform distributed
 computations on GPU's due to its multi-level parallelism. For those `teams`
 constructs where there is no subsequent distribution on individual teams, there
-can happen incorrect results because those constructs does not have synchronization
-through OpenMP. I.e. barrier calls cannot work in a `teams` construct, only
+can happen incorrect timing results because those constructs does not have synchronization
+through OpenMP. I.e. `barrier` calls are not available in a `teams` construct, only
 in a `teams ... parallel` where all threads of a team is participating.
 We have it here to showcase how `teams` can be *abused* for CPU's as well.
 There will be a *wide* spread of performance depending on the compiler
@@ -221,11 +217,22 @@ It is a shortcut driver for testing combinations of places of threads.
 It is best shown by an example:
 
 ```shell
-OMP_NUM_THREADS=3 OMP_PLACES=0,{1,2},4,5,10 omb-driver
+$> OMP_NUM_THREADS=3 OMP_PLACES=0,{1,2},4,5,10 omb-driver
+  0 1,2   4  triad do 1 8   3.07200000E+03   9.40218100E-02   9.44088364E-02   2.60900939E-07   9.56927400E-02  31.90749040E+00   2.85503391E+00
+  0 1,2   5  triad do 1 8   3.07200000E+03   9.40824550E-02   9.59592584E-02   1.36111673E-05   1.06213985E-01  31.88692302E+00   2.85319357E+00
+  0 1,2  10  triad do 1 8   3.07200000E+03   9.41941960E-02   9.46193575E-02   4.79454067E-08   9.49652460E-02  31.84909610E+00   2.84980888E+00
+  0   4   5  triad do 1 8   3.07200000E+03   1.01350198E-01   1.06201720E-01   6.39561026E-06   1.08226976E-01  29.60033684E+00   2.64859331E+00
+  0   4  10  triad do 1 8   3.07200000E+03   7.81628790E-02   7.99320207E-02   2.31608466E-06   8.19245620E-02  38.38139074E+00   3.43430871E+00
+  0   5  10  triad do 1 8   3.07200000E+03   7.77361840E-02   8.02890019E-02   2.61882319E-06   8.24161840E-02  38.59206673E+00   3.45315968E+00
+1,2   4   5  triad do 1 8   3.07200000E+03   1.06380118E-01   1.07770293E-01   2.96683275E-07   1.08236085E-01  28.20075834E+00   2.52336114E+00
+1,2   4  10  triad do 1 8   3.07200000E+03   7.79563530E-02   8.13598654E-02   1.34486237E-05   8.89212030E-02  38.48307270E+00   3.44340706E+00
+1,2   5  10  triad do 1 8   3.07200000E+03   7.77943770E-02   7.87795150E-02   7.42053940E-07   7.98704600E-02  38.56319847E+00   3.45057659E+00
+  4   5  10  triad do 1 8   3.07200000E+03   1.08133645E-01   1.13019056E-01   3.07201868E-06   1.14062300E-01  27.74344655E+00   2.48244157E+00
 ```
-will run several *tests* all with only 3 threads.
-This will be equivalent to running all these (note it is the upper
-triangular part of the product combination of placement):
+will run several *tests* all with only 3 threads (note example output
+just after).
+This will be equivalent to running all the upper triangular
+part of the product combination of placements:
 ```shell
 export OMP_NUM_THREADS=3
 
@@ -242,15 +249,14 @@ OMP_PLACES={1,2},4,10 omb
 OMP_PLACES={1,2},5,10 omb
 OMP_PLACES=4,5,10 omb
 ```
-Note that by default it amends the output by prefixing with
-the placement of the threads as understood by `omb`, see
-note in the snippet above. So the output will have `OMP_NUM_THREADS`
-additional columns with the first columns describing each threads
+Note that by default, the `omb-driver` prepends the placement
+of each thread by adding `OMP_NUM_THREADS` columns.
+These first `OMP_NUM_THREADS` describes each thread
 placement.
 
 If one does not wish to prefix with the placement id's of each
-thread on can call it as `omb-driver -Dwithout-place-info` to
-omit the prefix.
+thread on can use the option `omb-driver -Dwithout-place-info` to
+omit the placement prefix.
 
 
 
