@@ -230,7 +230,7 @@ $> OMP_NUM_THREADS=3 OMP_PLACES=0,{1,2},4,5,10 omb-driver
   4   5  10  triad do 1 8   3.07200000E+03   1.08133645E-01   1.13019056E-01   3.07201868E-06   1.14062300E-01  27.74344655E+00   2.48244157E+00
 ```
 will run several *tests* all with only 3 threads (note example output
-just after).
+just after).  
 This will be equivalent to running all the upper triangular
 part of the product combination of placements:
 ```shell
