@@ -36,7 +36,7 @@ program main
    integer :: method = METHOD_TRIADD
 
    ! TODO
-   !integer, parameter :: DTYPE_REAL16 = 1
+   integer, parameter :: DTYPE_REAL16 = 1
    integer, parameter :: DTYPE_REAL32 = 2
    integer, parameter :: DTYPE_REAL64 = 3
    integer, parameter :: DTYPE_REAL128 = 4
@@ -246,17 +246,23 @@ program main
             call read_and_check_next_arg(iarg, arg)
 
             select case (arg)
+               #:if "real16" in REALS
+                  case ("real16", "16", "halffloat", "halfsingle")
+                  dtype = DTYPE_REAL16
+               #:endif
             case ("real32", "32", "float", "single")
                dtype = DTYPE_REAL32
 
             case ("real64", "64", "double")
                dtype = DTYPE_REAL64
 
-            case ("real128", "128", "doubledouble", "longdouble")
-               dtype = DTYPE_REAL128
-
+               #:if "real128" in REALS
+                  case ("real128", "128", "doubledouble", "longdouble")
+                  dtype = DTYPE_REAL128
+               #:endif
             case default
-               write (ERROR_UNIT, *) "-dtype argument is not one of [real32/32, real64/64, real128/128]"
+               write (ERROR_UNIT, '(a)', advance="no") "-dtype argument is not one of "
+               write (ERROR_UNIT, '(a)') "[${','.join(REALS)}$]"
                stop 3
 
             end select
@@ -431,12 +437,18 @@ program main
    ! At this point, `bytes` is some size in bytes
    ! Lets convert this to the number of elements for the given dtype
    select case (dtype)
+      #:if "real16" in REALS
+         case (DTYPE_REAL16)
+         elem_bits = storage_size(1._real16)
+      #:endif
    case (DTYPE_REAL32)
       elem_bits = storage_size(1._real32)
    case (DTYPE_REAL64)
       elem_bits = storage_size(1._real64)
-   case (DTYPE_REAL128)
-      elem_bits = storage_size(1._real128)
+      #:if "real128" in REALS
+         case (DTYPE_REAL128)
+         elem_bits = storage_size(1._real128)
+      #:endif
    case default
       write (ERROR_UNIT, *) "Unknown data-type!"
       stop 21
@@ -852,9 +864,14 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
+      #:if "real16" in REALS
+         write (OUTPUT_UNIT, fmt_oa) " - 16|real16 -> 2-byte real"
+      #:endif
       write (OUTPUT_UNIT, fmt_oa) " - 32|real32 -> 4-byte real"
       write (OUTPUT_UNIT, fmt_oa) " - 64|real64 -> 8-byte real [default]"
-      write (OUTPUT_UNIT, fmt_oa) " - 128|real128 -> 16-byte real"
+      #:if "real128" in REALS
+         write (OUTPUT_UNIT, fmt_oa) " - 128|real128 -> 16-byte real"
+      #:endif
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "first-touch", "how to initialize arrays"
