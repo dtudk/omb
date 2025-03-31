@@ -634,11 +634,11 @@ program main
 
       if (rank_mpi == 0 .and. .not. (info_env%show .or. options%test)) then
 
-         write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(method_str)
+         write (OUTPUT_UNIT, "(tr1,a,t12)", advance="no") trim(method_str)
          block
             character(len=32) :: name
             call options%kernel%name(name)
-            write (OUTPUT_UNIT, "(tr1,a)", advance="no") trim(name)
+            write (OUTPUT_UNIT, "(tr1,a,t24)", advance="no") trim(name)
          end block
          if (options%first_touch) then
             ! parallel
@@ -647,7 +647,7 @@ program main
             ! master
             write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 0
          end if
-         write (OUTPUT_UNIT, "(tr1,i0)", advance="no") elem_bytes
+         write (OUTPUT_UNIT, "(tr1,i2)", advance="no") elem_bytes
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%mem_mb
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_min()
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_avg()
@@ -655,7 +655,7 @@ program main
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_max()
          write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%bandwidth_gbs()
          write (OUTPUT_UNIT, "(tr1,en16.8)", advance="no") results%gflops()
-         write (OUTPUT_UNIT, *) ""
+         write (OUTPUT_UNIT, "(a)") ""
 
          flush OUTPUT_UNIT
 
