@@ -63,7 +63,13 @@
 module benchmarks_m
 
    ! Define the different methods for benchmarks
-   use iso_fortran_env, only: real32, real64, real128
+   #:if "real16" in REALS
+      use iso_fortran_env, only: real16
+   #:endif
+   use iso_fortran_env, only: real32, real64
+   #:if "real128" in REALS
+      use iso_fortran_env, only: real128
+   #:endif
    use iso_fortran_env, only: ${OMB_INT_KIND}$
 
    use omp_lib

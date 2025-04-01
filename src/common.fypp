@@ -14,5 +14,10 @@
    #:set OMB_INT_KIND = "int64"
 #:endif
 
-#:set REALS = ["real32", "real64", "real128"]
 #:set REALS = ["real32", "real64"]
+#:if defined("OMB_REAL16")
+   #:set REALS = REALS + ["real16"]
+#:endif
+#:if defined("OMB_REAL128")
+   #:set REALS = REALS + ["real128"]
+#:endif

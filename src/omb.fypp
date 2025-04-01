@@ -11,7 +11,13 @@ program main
    #:endif
    use omp_lib
    use iso_fortran_env, only: OUTPUT_UNIT, ERROR_UNIT
-   use iso_fortran_env, only: real32, real64, real128
+   #:if "real16" in REALS
+      use iso_fortran_env, only: real16
+   #:endif
+   use iso_fortran_env, only: real32, real64
+   #:if "real128" in REALS
+      use iso_fortran_env, only: real128
+   #:endif
    use iso_fortran_env, only: int32, int64
 
    ! This is a pure fortran code, but should be able

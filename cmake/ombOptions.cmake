@@ -22,8 +22,9 @@ end")
 check_fortran_source_compiles("${source}" f_iso_fortran_env_int SRC_EXT f90)
 CHECK_PASS_FAIL( f_iso_fortran_env_int REQUIRED )
 
+
 CHECK_START("* has iso_fortran_env: real${prec}")
-macro(check_real prec)
+macro(CHECK_REAL prec)
 set(source "
 use, intrinsic :: iso_fortran_env, only : real${prec}
 real(real${prec}) :: r
@@ -35,10 +36,16 @@ CHECK_PASS_FAIL( f_iso_fortran_env_${prec} QUIET ${ARGN} )
 endmacro()
 
 # Check all the real* variants from iso_fortran_env
-check_real(16)
-check_real(32 REQUIRED)
-check_real(64 REQUIRED)
-check_real(128)
+CHECK_REAL(16)
+CHECK_REAL(32 REQUIRED)
+CHECK_REAL(64 REQUIRED)
+CHECK_REAL(128)
+if( f_iso_fortran_env_16 )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_REAL16")
+endif()
+if( f_iso_fortran_env_128 )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_REAL128")
+endif()
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 
 
