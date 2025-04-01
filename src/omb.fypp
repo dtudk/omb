@@ -52,7 +52,13 @@ program main
 
    ! Method definitions
    character(len=64) :: method_str
-   integer :: elem_bits, elem_bytes
+   ! Maximum byte size of *any* data-type.
+   ! This is the aligned data size of the final number of elements.
+   ! We don't do this based on what is available for the compiler.
+   ! That would mean that you would get different array sizes
+   ! depending on what the compiler supports.
+   integer, parameter :: ELEM_BYTES_MAX = 16
+   integer :: elem_bits, elem_bytes, elem_alignment
    integer(int64) :: big_n
    integer(${OMB_INT_KIND}$) :: n, n_dim2
    integer :: num_tasks = 0
@@ -88,6 +94,13 @@ program main
    ! Initialize the timing
    call timing_initialize()
 
+   ! Determine number of threads in this run...
+!$omp parallel shared(options)
+!$omp single
+   options%num_threads = omp_get_num_threads()
+!$omp end single
+!$omp end parallel
+
    block
       integer :: nargs
       integer :: iarg
@@ -118,6 +131,23 @@ program main
             ! Default to not show it since it gets quite verbose!
             info_env%teams = .true.
             info_env%show = .true.
+
+         case ("-threads", "--threads")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, -threads has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            read (arg, *) options%num_threads
+            if (options%num_threads < 1) then
+               write (ERROR_UNIT, *) "The number of threads *must* be 1 or more."
+               stop 4
+            end if
 
          case ("-kernel", "--kernel")
 
@@ -425,6 +455,9 @@ program main
 
    end block
 
+   ! Specify number of threads used
+   call omp_set_num_threads(options%num_threads)
+
    if (.not. associated(options%kernel)) then
       ! default to the DO kernel
       allocate (option_kernel_do_t::options%kernel)
@@ -475,19 +508,19 @@ program main
    ! Store in safety variable
    ! This will be the number of elements *per array*
    big_n = nint(bytes/(elem_bytes*narrays), int64)
+   ! We also add such that it is divisable by the number
+   ! data-type. In this way it makes comparing different data-types
+   ! much simpler.
+   ! This won't work for the false-sharing methods which
+   ! requires a different alignment.
+   elem_alignment = mod(big_n, ELEM_BYTES_MAX/elem_bytes)
+   big_n = big_n + elem_alignment
    if (big_n > huge(n)) then
       write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64."
       write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_KIND=int64 (the default)."
       stop 20
    end if
    n = big_n
-
-   ! Determine number of threads in this run...
-!$omp parallel shared(options)
-!$omp single
-   options%num_threads = omp_get_num_threads()
-!$omp end single
-!$omp end parallel
 
    #:def CASE_DTYPE_BENCHMARK(name)
       select case (dtype)
@@ -601,8 +634,9 @@ program main
 
    if (options%debug) then
       write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
-      write (OUTPUT_UNIT, debug_fmt_i) "elem_count", big_n
-      write (OUTPUT_UNIT, debug_fmt_e) "alloc_mem [MB]", real(big_n, real64)*elem_bytes*narrays/(1024**2)
+      write (OUTPUT_UNIT, debug_fmt_i) "elements_count", big_n
+      write (OUTPUT_UNIT, debug_fmt_i) "elements_alignment", elem_alignment
+      write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", real(big_n, real64)*elem_bytes*narrays/(1024**2)
       write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
@@ -620,8 +654,8 @@ program main
       end select
       ! Important to use big_n
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
-      write (OUTPUT_UNIT, debug_fmt_i) "warmup_it", options%warmup_it
-      write (OUTPUT_UNIT, debug_fmt_i) "it", options%it
+      write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
+      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it
       write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
    end if
 
@@ -833,8 +867,9 @@ contains
       write (OUTPUT_UNIT, '(a)') "Options:"
 
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
-      write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory"
+      write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory."
       write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB and GB."
+      write (OUTPUT_UNIT, fmt_oa) "The actual size will be aligned to 16 bytes."
       write (OUTPUT_UNIT, fmt_oafa) "Default is", DEFAULT_BYTES/1024**3, "GB."
       write (OUTPUT_UNIT, fmt_nl)
 
@@ -892,6 +927,9 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "offset", "number of elements added to each array for offsetting allocations"
       write (OUTPUT_UNIT, fmt_oa) "Default is 0 elements."
+      write (OUTPUT_UNIT, fmt_nl)
+
+      write (OUTPUT_UNIT, fmt_opt_a) "threads", "number of threads used (superseeds OMP_NUM_TRHEADS)"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "debug", "print-out additional debug information"
