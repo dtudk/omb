@@ -119,10 +119,11 @@ different methods. The default method to run the benchmark is the
 
 | Method | Operation |
 | ---- | --------- |
-| `triad` | `a = b + c * 2` |
-| `quad` | `a = b + c * d` |
-| `axpy` |  `a = a + b * 2` |
-| `scale` | `a = b * 2` |
+| `triad` | `a = b + c*2` |
+| `tetrad` | `a = b + c*d` |
+| `pentad` | `a = b*c + d*e` |
+| `axpy` |  `a = a + b*2` |
+| `scale` | `a = b*2` |
 | `add` |   `a = b + c` |
 | `fill` |  `a = 2.` |
 | `sum` |   `res = sum(a)` |
@@ -197,8 +198,8 @@ performance hit by using false-sharing access patterns (bad cache usage).
 
 | Method | Operation |
 | ---- | --------- |
-| `triad-fs` | `a = b + c * 2` |
-| `quad-fs` | `a = b + c * d` |
+| `triad-fs` | `a = b + c*2` |
+| `tetrad-fs` | `a = b + c*d` |
 
 And there is a limited amount of kernels allowed because of the way
 it accesses the memory elements.

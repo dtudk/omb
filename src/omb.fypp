@@ -244,9 +244,13 @@ program main
             method = METHOD_TRIADD
             narrays = 3
 
-         case ("quadd", "quad", "quadadd", "quadad")
-            method = METHOD_QUADD
+         case ("tetraadd", "tetra", "tetrad", "tetradd", "tetraad")
+            method = METHOD_TETRADD
             narrays = 4
+
+         case ("pentaadd", "penta", "pentad", "pentadd", "pentaad")
+            method = METHOD_PENTADD
+            narrays = 5
 
          case ("axpy")
             method = METHOD_AXPY
@@ -266,8 +270,8 @@ program main
             method = METHOD_TRIADD_FALSE_SHARING
             narrays = 3
 
-         case ("quadd-fs", "quad-fs", "quadadd-fs", "quadad-fs")
-            method = METHOD_QUADD_FALSE_SHARING
+         case ("tetraadd-fs", "tetra-fs", "tetradd-fs", "tetrad-fs")
+            method = METHOD_TETRADD_FALSE_SHARING
             narrays = 4
 
          case ("-dtype", "--dtype")
@@ -552,10 +556,15 @@ program main
 
       @:CASE_DTYPE_BENCHMARK(bench_triadd)
 
-   case (METHOD_QUADD)
-      method_str = "quad"
+   case (METHOD_TETRADD)
+      method_str = "tetrad"
 
-      @:CASE_DTYPE_BENCHMARK(bench_quadd)
+      @:CASE_DTYPE_BENCHMARK(bench_tetradd)
+
+   case (METHOD_PENTADD)
+      method_str = "pentad"
+
+      @:CASE_DTYPE_BENCHMARK(bench_pentadd)
 
    case (METHOD_SUM)
       method_str = "sum"
@@ -579,12 +588,12 @@ program main
 
       @:CASE_DTYPE_BENCHMARK(bench_triadd_false_sharing)
 
-   case (METHOD_QUADD_FALSE_SHARING)
-      method_str = "quad-fs"
+   case (METHOD_TETRADD_FALSE_SHARING)
+      method_str = "tetrad-fs"
 
       n_dim2 = options%num_threads
 
-      @:CASE_DTYPE_BENCHMARK(bench_quadd_false_sharing)
+      @:CASE_DTYPE_BENCHMARK(bench_tetradd_false_sharing)
 
    case default
 
@@ -850,17 +859,18 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, '(a)') "Methods:"
-      write (OUTPUT_UNIT, fmt_arg_a) "triad", "a = b + c * 2  [default]"
-      write (OUTPUT_UNIT, fmt_arg_a) "quad", "a = b + c * d"
-      write (OUTPUT_UNIT, fmt_arg_a) "axpy", "a = a + b * 2"
-      write (OUTPUT_UNIT, fmt_arg_a) "scale", "a = b * 2"
+      write (OUTPUT_UNIT, fmt_arg_a) "triad", "a = b + c*2  [default]"
+      write (OUTPUT_UNIT, fmt_arg_a) "tetrad", "a = b + c*d"
+      write (OUTPUT_UNIT, fmt_arg_a) "pentad", "a = b*c + d*e"
+      write (OUTPUT_UNIT, fmt_arg_a) "axpy", "a = a + b*2"
+      write (OUTPUT_UNIT, fmt_arg_a) "scale", "a = b*2"
       write (OUTPUT_UNIT, fmt_arg_a) "add", "a = b + c"
       write (OUTPUT_UNIT, fmt_arg_a) "fill", "a = 2."
       write (OUTPUT_UNIT, fmt_arg_a) "sum", "res = sum(a)"
       write (OUTPUT_UNIT, fmt_arg_a) "copy", "a = b"
-      write (OUTPUT_UNIT, fmt_arg_a) "triad-fs", "a = b + c * 2"
+      write (OUTPUT_UNIT, fmt_arg_a) "triad-fs", "a = b + c*2"
       write (OUTPUT_UNIT, fmt_aa) "Forcefull false-sharing access."
-      write (OUTPUT_UNIT, fmt_arg_a) "quad-fs", "a = b + c * d"
+      write (OUTPUT_UNIT, fmt_arg_a) "tetrad-fs", "a = b + c*d"
       write (OUTPUT_UNIT, fmt_aa) "Forcefull false-sharing access."
 
       write (OUTPUT_UNIT, fmt_nl)
