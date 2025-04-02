@@ -441,7 +441,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  sum_a = sum(a)
+                  sum_a = sum(a(1:n))
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -692,7 +692,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = fill
+                  a(1:n) = fill
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -942,7 +942,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = b(:)
+                  a(1:n) = b(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -1195,7 +1195,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = scale*b(:)
+                  a(1:n) = scale*b(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -1447,7 +1447,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = b(:) + c(:)
+                  a(1:n) = b(1:n) + c(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -1702,7 +1702,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = b(:) + scale*c(:)
+                  a(1:n) = b(1:n) + scale*c(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -1956,7 +1956,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = b(:) + c(:)*d(:)
+                  a(1:n) = b(1:n) + c(1:n)*d(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -2212,7 +2212,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = b(:)*c(:) + d(:)*e(:)
+                  a(1:n) = b(1:n)*c(1:n) + d(1:n)*e(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
@@ -2261,7 +2261,7 @@ contains
          call results%update(5, n, 3, storage_size(1.0_${real}$))
 
          if (options%test) then
-            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$*2.5_${real}$+9.5_${real}$)
+            write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$*2.5_${real}$+3*3.5_${real}$)
          end if
 
          @:ARRAY_DEALLOC(a, b, c, d, e)
@@ -2465,7 +2465,7 @@ contains
 
                   @:TYPE_IS(option_kernel_workshare_t)
 !$omp workshare
-                  a(:) = a(:) + scale*b(:)
+                  a(1:n) = a(1:n) + scale*b(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
