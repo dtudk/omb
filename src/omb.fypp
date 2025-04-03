@@ -35,11 +35,12 @@ program main
    character(len=*), parameter :: debug_fmt_a = "(a,t35,':',256(tr1,a))"
    character(len=*), parameter :: debug_fmt_i = "(a,t35,':',256(tr1,i0))"
    character(len=*), parameter :: debug_fmt_l = "(a,t35,':',256(tr1,l0))"
-   character(len=*), parameter :: debug_fmt_e = "(a,t35,':',256(tr1,e0.10))"
+   character(len=*), parameter :: debug_fmt_e = "(a,t35,':',256(tr1,en0.10))"
 
-   ! narrays highly linked to default method
-   integer :: narrays = 3
+   ! narrays follows number of arrays used for the method
+   integer, parameter :: MAX_NARRAYS = 5
    integer :: method = METHOD_TRIADD
+   integer :: narrays = 3
 
    ! TODO
    integer, parameter :: DTYPE_REAL16 = 1
@@ -57,7 +58,8 @@ program main
    ! We don't do this based on what is available for the compiler.
    ! That would mean that you would get different array sizes
    ! depending on what the compiler supports.
-   integer, parameter :: ELEM_BYTES_MAX = 16
+   integer, parameter :: MIN_ELEM_BYTES = 2
+   integer, parameter :: MAX_ELEM_BYTES = 16
    integer :: elem_bits, elem_bytes, elem_alignment
    integer(int64) :: big_n
    integer(${OMB_INT_KIND}$) :: n, n_dim2
@@ -106,8 +108,8 @@ program main
       integer :: iarg
       character(len=256) :: arg
       integer :: idx, istr_size
-      character(len=2), parameter :: STR_SIZES(6) = ["kb", "k ", "mb", "m ", "gb", "g "]
-      integer, parameter :: INT_SIZES(6) = [1024, 1024, 1024**2, 1024**2, 1024**3, 1024**3]
+      character(len=2), parameter :: STR_SIZES(8) = ["kb", "k ", "mb", "m ", "gb", "g ", "tb", "t "]
+      integer, parameter :: POWER_SIZES(8) = [1, 1, 2, 2, 3, 3, 4, 4]
 
       nargs = command_argument_count()
       iarg = 1
@@ -391,7 +393,7 @@ program main
                   read (arg, *) bytes
                   ! this converts 10MB to
                   ! 10 * 1024**2
-                  bytes = bytes*INT_SIZES(istr_size)
+                  bytes = bytes*1024_int64**POWER_SIZES(istr_size)
                   n = 1
                   exit
                end if
@@ -500,8 +502,7 @@ program main
    ! Convert bits -> bytes
    if (mod(elem_bits, 8) /= 0) then
       write (ERROR_UNIT, *) "The data-type bit size is not divisible by 8."
-      write (ERROR_UNIT, *) "All elements are calculated *correctly*, but the ELEM_B"
-      write (ERROR_UNIT, *) "column will be wrong!"
+      stop 30
    end if
    elem_bytes = elem_bits/8
 
@@ -511,15 +512,30 @@ program main
 
    ! Store in safety variable
    ! This will be the number of elements *per array*
-   big_n = nint(bytes/(elem_bytes*narrays), int64)
-   ! We also add such that it is divisable by the number
+   big_n = nint(bytes/(MAX_ELEM_BYTES*narrays), int64)
+
+   ! We also add such that it is divisible by the number
    ! data-type. In this way it makes comparing different data-types
    ! much simpler.
+   ! This isn't fully complete when calculating sizes across
+   ! different methods. So for different data-types, but same
+   ! methods, this will provide a consistent memory usage.
+   ! For same-datatype, but different methods, there will
+   ! be small deviations.
    ! This won't work for the false-sharing methods which
    ! requires a different alignment.
-   elem_alignment = mod(big_n, ELEM_BYTES_MAX/elem_bytes)
+   elem_alignment = mod(big_n, MAX_ELEM_BYTES)
    big_n = big_n + elem_alignment
-   if (big_n > huge(n)) then
+   ! Convert from the maximum elementtype to the current element type
+   elem_alignment = elem_alignment*MAX_ELEM_BYTES/elem_bytes
+   big_n = big_n*MAX_ELEM_BYTES/elem_bytes
+
+   ! For small sizes, the above alignment of data-types yields
+   ! memory sizes very different from what is requested.
+   ! I.e. for 12kB one could get 11.7kB and 12.5kB.
+   elem_alignment = 0
+   big_n = nint(bytes/(elem_bytes*narrays), int64)
+   if (big_n + options%offset > huge(n)) then
       write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64."
       write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_KIND=int64 (the default)."
       stop 20
@@ -645,12 +661,33 @@ program main
       write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
       write (OUTPUT_UNIT, debug_fmt_i) "elements_count", big_n
       write (OUTPUT_UNIT, debug_fmt_i) "elements_alignment", elem_alignment
-      write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", real(big_n, real64)*elem_bytes*narrays/(1024**2)
+      block
+         integer(int64) :: all_ibytes
+         real(real64) :: all_mb
+         all_ibytes = big_n*elem_bytes*narrays
+         all_mb = real(all_ibytes, real64)/1024**2
+         select case (all_ibytes)
+         case (:1024_int64 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [B]", all_mb*1024**2
+         case (1024_int64**1:1024_int64**2 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [kB]", all_mb*1024
+         case (1024_int64**2:1024_int64**3 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", all_mb
+         case (1024_int64**3:1024_int64**4 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [GB]", all_mb/1024
+         case (1024_int64**4:1024_int64**5 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [TB]", all_mb/1024**2
+         case default
+            ! unknown... should likely never happen
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", all_mb
+         end select
+      end block
       write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", elem_bytes
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
+      write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", narrays
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       block
          character(len=32) :: name
@@ -666,6 +703,25 @@ program main
       write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
       write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it
       write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
+      block
+         integer(int64) :: all_ibytes
+         real(real64) :: all_rbytes
+         all_ibytes = options%offset*elem_bytes*narrays*n_dim2
+         all_rbytes = real(all_ibytes, real64)
+         select case (all_ibytes)
+         case (:1024_int64 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [B]", all_rbytes
+         case (1024_int64**1:1024_int64**2 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [kB]", all_rbytes/1024
+         case (1024_int64**2:1024_int64**3 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [MB]", all_rbytes/1024**2
+         case (1024_int64**3:1024_int64**4 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [GB]", all_rbytes/1024**3
+         case default
+            ! unknown... should likely never happen
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [B]", all_rbytes
+         end select
+      end block
    end if
 
    ! OpenMP information
@@ -717,7 +773,7 @@ program main
             write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 0
          end if
          write (OUTPUT_UNIT, "(tr1,i2)", advance="no") elem_bytes
-         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%mem_mb
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%memory_mb
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_min()
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_avg()
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_std()
@@ -878,7 +934,7 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
       write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory."
-      write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB and GB."
+      write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB, GB and TB."
       write (OUTPUT_UNIT, fmt_oa) "The actual size will be aligned to 16 bytes."
       write (OUTPUT_UNIT, fmt_oafa) "Default is", DEFAULT_BYTES/1024**3, "GB."
       write (OUTPUT_UNIT, fmt_nl)

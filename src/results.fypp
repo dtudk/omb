@@ -17,7 +17,7 @@ module results_m
       integer :: narrays
 
       ! Size of all allocated arrays
-      real(real64) :: mem_mb
+      real(real64) :: memory_mb
 
       ! gflop
       real(real64) :: gflop
@@ -67,7 +67,7 @@ contains
       integer(${OMB_INT_KIND}$) :: n
 
       this%narrays = narrays
-      this%mem_mb = real(n, real64)*elem_bits*narrays/(8._real64*1024**2)
+      this%memory_mb = real(n, real64)*elem_bits*narrays/(8._real64*1024**2)
       this%gflop = elem_flop*real(n, real64)/1000**3
 
    end subroutine
@@ -81,7 +81,7 @@ contains
    function bandwidth_gbs(this) result(bandwidth)
       class(results_t), intent(in) :: this
       real(real64) :: bandwidth
-      bandwidth = this%mem_mb/this%time_min()/1024
+      bandwidth = this%memory_mb/this%time_min()/1024
    end function
 
    function time_max(this) result(time)

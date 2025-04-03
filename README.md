@@ -108,7 +108,7 @@ Here are the most commonly used options for `omb`:
 | ---- | --------- |
 | `-help` | Show an extensive help text! |
 | `-n <size>` | Specify the full size of allocated arrays. |
-| | E.g. `-n 2MB` (`kB`, `MB`, `GB` are allowed). |
+| | E.g. `-n 2MB` (`kB`, `MB`, `GB`, `TB` are allowed). |
 | `-it <count>` | Take the minimum timing out of this many iterations. |
 | `-dtype 32\|64\|128` | Use the data-type with this many bytes per element. |
 | `-kernel <name>` | Specify the OpenMP construct used in the benchmark. <br> Please see `omb --help` for available kernels. |
