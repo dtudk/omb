@@ -630,14 +630,14 @@ program main
    ! time the small memories.
    if (.not. option_set_it) then
       ! bump it up to more iterations for small memory footprints
-      if (bytes*bytes2MB < 2._real64) then
-         options%it = 50
-      end if
-      if (bytes*bytes2MB < 1._real64) then
-         options%it = 75
+      if (bytes*bytes2MB < 5._real64) then
+         options%it = 100
       end if
       if (bytes*bytes2MB < 0.5_real64) then
-         options%it = 100
+         options%it = 500
+      end if
+      if (bytes*bytes2MB < 0.125_real64) then
+         options%it = 1000
       end if
    end if
 
@@ -975,7 +975,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
-      write (OUTPUT_UNIT, fmt_oa) "Default is 100<0.5MB, 75<1MB, 50<2MB."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<128kB, 500<0.5MB, 100<5MB."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
