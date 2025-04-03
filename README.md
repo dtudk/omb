@@ -198,12 +198,12 @@ performance hit by using false-sharing access patterns (bad cache usage).
 
 | Method | Operation |
 | ---- | --------- |
-| `triad-fs` | `a = b + c*2` |
-| `tetrad-fs` | `a = b + c*d` |
+| `fs:triad` | `a = b + c*2` |
+| `fs:tetrad` | `a = b + c*d` |
 
 And there is a limited amount of kernels allowed because of the way
 it accesses the memory elements.
-One can compare the `triad` with the `triad-fs` using the `do` kernel.
+One can compare the `triad` with the `fs:triad` using the `do` kernel.
 And then any performance hit will be due to the false-sharing access
 pattern.
 

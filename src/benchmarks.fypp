@@ -91,9 +91,9 @@ module benchmarks_m
    integer, public, parameter :: METHOD_SUM = 5
    integer, public, parameter :: METHOD_AXPY = 6
    integer, public, parameter :: METHOD_FILL = 7
-   integer, public, parameter :: METHOD_TRIADD_FALSE_SHARING = 8
+   integer, public, parameter :: METHOD_FALSE_SHARING_TRIADD = 8
    integer, public, parameter :: METHOD_TETRADD = 9
-   integer, public, parameter :: METHOD_TETRADD_FALSE_SHARING = 10
+   integer, public, parameter :: METHOD_FALSE_SHARING_TETRADD = 10
    integer, public, parameter :: METHOD_PENTADD = 11
 
    #:for real in REALS
@@ -106,8 +106,8 @@ module benchmarks_m
       public :: bench_sum_${real}$
       public :: bench_axpy_${real}$
       public :: bench_fill_${real}$
-      public :: bench_triadd_false_sharing_${real}$
-      public :: bench_tetradd_false_sharing_${real}$
+      public :: bench_false_sharing_triadd_${real}$
+      public :: bench_false_sharing_tetradd_${real}$
    #:endfor
 
    public :: benchmark_method
@@ -2521,7 +2521,7 @@ contains
 
       end subroutine
 
-      subroutine bench_triadd_false_sharing_${real}$ (n, options, results)
+      subroutine bench_false_sharing_triadd_${real}$ (n, options, results)
          use omp_lib, only: omp_get_thread_num
          integer(${OMB_INT_KIND}$), intent(in) :: n
          type(options_t), intent(in):: options
@@ -2725,7 +2725,7 @@ contains
 
       end subroutine
 
-      subroutine bench_tetradd_false_sharing_${real}$ (n, options, results)
+      subroutine bench_false_sharing_tetradd_${real}$ (n, options, results)
          use omp_lib, only: omp_get_thread_num
          integer(${OMB_INT_KIND}$), intent(in) :: n
          type(options_t), intent(in):: options
