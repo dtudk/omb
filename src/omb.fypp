@@ -628,9 +628,17 @@ program main
    ! For very small arrays, we should do more iterations to correctly
    bytes = real(big_n, real64)*elem_bytes*narrays
    ! time the small memories.
-   if ((.not. option_set_it) .and. bytes*bytes2MB < 1._real64) then
-      ! bump it up to 50 iterations
-      options%it = 50
+   if (.not. option_set_it) then
+      ! bump it up to more iterations for small memory footprints
+      if (bytes*bytes2MB < 2._real64) then
+         options%it = 50
+      end if
+      if (bytes*bytes2MB < 1._real64) then
+         options%it = 75
+      end if
+      if (bytes*bytes2MB < 0.5_real64) then
+         options%it = 100
+      end if
    end if
 
    ! In case the kernel is the taskloop, and the num_tasks is < 1, then
@@ -967,7 +975,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
-      write (OUTPUT_UNIT, fmt_oa) "Default is 50 for <1MB, otherwise 10."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 100<0.5MB, 75<1MB, 50<2MB."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
