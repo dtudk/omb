@@ -98,7 +98,7 @@ contains
       integer :: thread, io_thread
       real(real64) :: wtick
 
-      ! Generic information on the openmp environment
+      ! Generic information on the OpenMP environment
 
 !$omp parallel default(private)
 !$omp single
@@ -387,6 +387,7 @@ contains
    subroutine print_info_omp_devices()
 
       #:if defined("OMB_OMP_DEVICE")
+         write (OUTPUT_UNIT, FMT_i) "initial_device", omp_get_initial_device()
          write (OUTPUT_UNIT, FMT_i) "num_devices", omp_get_num_devices()
          write (OUTPUT_UNIT, FMT_i) "default_device", omp_get_default_device()
          write (OUTPUT_UNIT, FMT_i) "device_num", omp_get_device_num()

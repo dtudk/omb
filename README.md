@@ -216,7 +216,6 @@ is a simple `bash` script.
 
 It is a shortcut driver for testing combinations of places of threads.
 It is best shown by an example:
-
 ```shell
 $> OMP_NUM_THREADS=3 OMP_PLACES=0,{1,2},4,5,10 omb-driver
   0 1,2   4  triad do 1 8   3.07200000E+03   9.40218100E-02   9.44088364E-02   2.60900939E-07   9.56927400E-02  31.90749040E+00   2.85503391E+00
@@ -257,7 +256,19 @@ placement.
 
 If one does not wish to prefix with the placement id's of each
 thread on can use the option `omb-driver -Dwithout-place-info` to
-omit the placement prefix.
+omit the first `OMP_NUM_THREADS` placement columns.
+
+By default, if `OMP_PLACES` is unset, `omb-driver` will set `OMP_PLACES=cores`.
+```shell
+# CPU 2 hw-threads x 4 cores
+# The below 3 invocations are equivalent:
+OMP_PLACES={0:2}:4:2 omb-driver
+OMP_PLACES={0,1},{2,3},{4,5},{6,7} omb-driver
+omb-driver
+```
+If one wishes to distinguish hardware-threads as thread domains, simply
+call it with `omb-driver -Ddomains threads` which will make all threads
+a place.
 
 
 
@@ -274,6 +285,9 @@ It, however, takes some different approaches:
   `STREAM` does a timing around the `omp parallel` pragmas/constructs.
   Hence, `STREAM` also times spawning of threads, which may,
   or may not, be desired.
+
+  In particular, `omb`, enables cache discovery for small memory footprints.
+  In these cases it is vital to not time thread-spawning.
 - `omb` has command-line arguments to change internal allocated array
   sizes and iteration parameters etc. (no recompiling needed)
 - `omb` has different kernels for each method implemented.

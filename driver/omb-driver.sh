@@ -11,15 +11,14 @@
 #
 #      Specifies the executable 'omp' from this project.
 #
-#    - OMP_PLACES [=cores(2048)]
+#    - OMP_PLACES [=cores]
 #
-#      If not set, this will be defaulted to 'cores(2048)',
-#      meaning that the run will cycle through all cores available,
-#      up to the first 2048 cores!
+#      If not set, this will be defaulted to 'cores',
+#      meaning that the run will cycle through all cores available.
 #
 #    - OMP_SCHEDULE [=static]
 #
-#      Specifies how the internal openmp schedule is done for the
+#      Specifies how the internal OpenMP schedule is done for the
 #      loops. If not specified it will default to 'static'.
 #      The chunk-size is by default determined by the implementation.
 #
@@ -68,9 +67,26 @@
 #     so it will run through the unique combinations of the initial
 #     available places (upper triangular part of the combination matrix).
 #
+# Notes:
+#
+# The driver can figure out if the places requested are hardware threads
+# and whether they are allowed to be further filled.
+# Consider a system, without hardware threads, and a request:
+#
+#   OMP_PLACES={1,2},{3,4} OMP_NUM_THREADS=3 omb-driver
+#
+# This will run the triangular part:
+#
+#   OMP_PLACES={1,2},{3,4},{1,2} omb $@
+#   OMP_PLACES={1,2},{3,4},{3,4} omb $@
 
-_prefix="omb: "
-_prefix_debug="omb-debug: "
+readonly _prefix="omb: "
+readonly _prefix_debug="omb-debug: "
+
+# Variable used for regexp of the place_proc_ids
+# It will be used to extract the placement ID's of
+# the processors.
+readonly PLACE_PROC_IDS_RE="omp \[([ 0-9]*)\] place_proc_ids[ ]*:[ ]*(.*)"
 
 # Driver for creating comprehensive benchmarks.
 [ -z "$OMB_EXE" ] && OMB_EXE=$(which omb 2>/dev/null)
@@ -81,26 +97,33 @@ if [ ! -x "$OMB_EXE" ]; then
   exit 1
 fi
 
-if [ -z "$OMP_PLACES" ]; then
-  echo >&2 "$_prefix OMP_PLACES not defined, defaulting to: cores(2048)"
-  export OMP_PLACES="cores(2048)"
-fi
-if [ -z "$OMP_SCHEDULE" ]; then
-  echo >&2 "$_prefix OMP_SCHEDULE not defined, defaulting to: STATIC"
-  export OMP_SCHEDULE=static
-fi
-
 # Define options here
 _args=()
-_only_one=0
-_no_place_info=0
+_domains=cores
+_single=0
+_without_place_info=0
 while [ $# -gt 0 ]; do
   case $1 in
+    -Ddomains)
+      shift
+      if [[ $# -lt 1 ]]; then
+        echo >&2 "$_prefix missing argument to -Ddomains <>"
+      fi
+      _domains="$1"
+      ;;
+    -Dcores)
+      # Same as -Ddomains cores
+      _domains=cores
+      ;;
+    -Dthreads)
+      # Same as -Ddomains threads
+      _domains=threads
+      ;;
     -Dsingle)
-      _only_one=1
+      _single=1
       ;;
     -Dwithout-place-info)
-      _no_place_info=1
+      _without_place_info=1
       ;;
     *)
       _args+=($1)
@@ -109,20 +132,34 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+if [ -z "$OMP_PLACES" ]; then
+  echo >&2 "$_prefix OMP_PLACES not defined, defaulting to: $_domains"
+  export OMP_PLACES="$_domains"
+fi
+# Store input OMP_PLACES
+readonly INPUT_OMP_PLACES="$OMP_PLACES"
+
+if [ -z "$OMP_SCHEDULE" ]; then
+  echo >&2 "$_prefix OMP_SCHEDULE not defined, defaulting to: STATIC"
+  export OMP_SCHEDULE=static
+fi
+
 if [[ -n "$DEBUG" ]]; then
   echo >&2 "$_prefix_debug OMB_EXE=$OMB_EXE"
   echo >&2 "$_prefix_debug OMP_NUM_THREADS=$OMP_NUM_THREADS"
   echo >&2 "$_prefix_debug OMP_PLACES=$OMB_PLACES"
   echo >&2 "$_prefix_debug OMP_SCHEDULE=$OMP_SCHEDULE"
-  echo >&2 "$_prefix_debug single=$_only_one"
-  echo >&2 "$_prefix_debug without-place-info=$_no_place_info"
+  echo >&2 "$_prefix_debug domains=$_domains"
+  echo >&2 "$_prefix_debug single=$_single"
+  echo >&2 "$_prefix_debug without-place-info=$_without_place_info"
   echo >&2 "$_prefix_debug arguments passed to 'omb': $@"
 fi
 
 function error_show_tmp() {
   # Simple function to show the temporary content, mainly for debugging
   echo >&2 "$_prefix Content of the $OMB_EXE -env for figuring out places.."
-  cat >&2 $tmpfile
+  echo >&2 "$_prefix Temporary files: $tmpdomains and $tmpplaces"
+  cat >&2 $tmpplaces
 }
 
 function _debug_array {
@@ -150,29 +187,188 @@ function _debug_array {
   esac
 }
 
+function get_env {
+  local var_name="$1"
+  local -n var="$1"
+  local file="$2"
+  shift 2
+  local tmp
+  local idx
+
+  case $1 in
+    -num-threads)
+      # Retrieve total number of threads that this test should encompass
+
+      var=$(grep "omp num_threads" $file)
+      var=${var##*:}
+      var=${var// /}
+      ;;
+
+    -num-places)
+      # Determine how many different places are defined
+      # in the environment.
+      # Note, that by default the domains are *cores* (see -Ddomains).
+
+      var=$(grep "omp num_places" $file)
+      var=${var##*:}
+      var=${var// /}
+      ;;
+
+    -place-proc-ids)
+      # Read a file and put in array `var` the placements allowed
+      # for each place ID.
+      #   var[0]=0,1,2
+      #   var[1]=3,4
+
+      while IFS= read -r omp_place_proc_ids
+      do
+        if [[ $omp_place_proc_ids =~ $PLACE_PROC_IDS_RE ]]; then
+          var[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"
+        fi
+      done <<< $(grep -e "omp \[[ 0-9]*\] place_proc_ids" $file)
+      ;;
+
+    -place-num-places)
+      # Extract the number of places
+
+      local -n file=$file
+      for idx in ${!file[@]}
+      do
+        # convert '0,1,3' into (0 1 3)
+        # then get the length of the array
+        tmp=(${file[$idx]//,/ })
+        var[$idx]=${#tmp[@]}
+      done
+      ;;
+
+    -place-num-domains)
+
+      local -n file=$file
+      for idx in ${!file[@]}
+      do
+        # convert '0,1,3' into (0 1 3)
+        # then get the length of the array
+        tmp=(${file[$idx]//,/ })
+        var[$idx]=${#tmp[@]}
+      done
+      ;;
+
+    *)
+      echo >&2 "$_prefix unknown argument to get_env: $1"
+      ;;
+  esac
+  shift
+}
+
+
 # Create a nested loop-construct based on the OMP_PLACES.
 # Currently, only the comma-separated one is acceptable.
-tmpfile=$(mktemp)
-# Ask openmp how the places are located.
+tmpdomains=$(mktemp)
+tmpplaces=$(mktemp)
+
+# Ask OpenMP how the places are located.
 # Then, we will collect them through scripts.
-$OMB_EXE -env 2>/dev/null > $tmpfile
+# We use this first invocation to figure out if the hardware has HW-threads
+# or not.
+# It will also be used to figure out if round-robin places are available.
+OMP_PLACES="$_domains" OMP_NUM_THREADS=1 $OMB_EXE -env 2>/dev/null > $tmpdomains
+$OMB_EXE -env 2>/dev/null > $tmpplaces
 
-# Retrieve total number of threads that this test should encompass
-num_threads=$(grep "omp num_threads" $tmpfile)
-num_threads=${num_threads##*:}
-num_threads=${num_threads/ /}
+# Get all available places depending on the _domains variable.
+# If the hardware has HW-threads, and _domains=cores, then
+# we'll get a list of {0,1},{2,3},...,{NT-2,NT-1}
+# Afterwards we'll use this to determine whether a requested
+# place is overlapping several domains.
+get_env domains_place_proc_ids $tmpdomains -place-proc-ids
 
-# Check whether places has been set correctly
-# I.e. we do not allow *no* placement, as that won't loop
-# anything.
-num_places=$(grep "omp num_places" $tmpfile)
-num_places=${num_places##*:}
-num_places=${num_places/ /}
+_debug_array domains_place_proc_ids "Processor ID's per domain"
+
+
+# Get information on the user-requested allowed places.
+# An example line looks something like this:
+# omp [1] place_proc_ids  : 0,2,4
+# - [1] == 2nd place specification
+# - 0 2 4 == the 2nd thread can be places on either of these core IDs
+# In this case the read proc id's and num-places are with respect
+# to the default OMP_PLACES=cores|threads
+get_env place_proc_ids $tmpplaces -place-proc-ids
+get_env num_threads $tmpplaces -num-threads
+
+_debug_array place_proc_ids "Processor ID's per place"
+
+
+# We need to assert that all `place_proc_ids` only overlaps with
+# a single domain in `domains_place_proc_ids`.
+declare -a place_domains
+max_domains=0
+for idx in ${!place_proc_ids[@]}
+do
+  # Reset counter
+  domain_counter=0
+
+  for didx in ${!domains_place_proc_ids[@]}
+  do
+    # convert the places into column data, compare them (comm)
+    # then map the overlapping lines into the array `tmp`
+    mapfile -t tmp < \
+      <(comm -12 \
+        <(IFS=$'\n' ; echo ${place_proc_ids[$idx]} | tr ',' '\n' | sort) \
+        <(IFS=$'\n' ; echo ${domains_place_proc_ids[$didx]} | tr ',' '\n' | sort)
+      )
+
+    if [ ${#tmp[@]} -gt 0 ]; then
+      let domain_counter++
+    fi
+
+  done
+  # Store the number of domains for this place
+  place_domains[$idx]=$domain_counter
+  if [ $domain_counter -gt $max_domains ]; then
+    # track the maximum number of spanning domains for any place
+    max_domains=$domain_counter
+  fi
+
+  if [ $domain_counter -lt 1 ]; then
+    echo >&2 "$_prefix place index ${idx} with places: ${place_proc_ids[$idx]}"
+    echo >&2 "$_prefix overlapped with ${domain_counter} domains."
+    echo >&2 "$_prefix The requested placement *must* overlap with at least 1 domain!"
+    exit 5
+  fi
+done
+
 
 # If the # of places < # of thread
-# then we can't really do the benchmark.
-# At least not in this script.
+# we will amend the places by the places which spans multiple domains.
+
+# Add all places which spans more than 1 domain.
+# This will put its domain in as many times as
+for idomain in $(seq 2 $max_domains)
+do
+  for idx in ${!place_proc_ids[@]}
+  do
+    newidx=${#place_proc_ids[@]}
+    #if [ $newidx -ge $num_threads ]; then
+      # Only add new places if the number of available
+      # places are below the number of threads
+    #  break
+    #fi
+
+    # Check if this place has enough domains to add a new
+    # place to the list.
+    if [ $idomain -le ${place_domains[$idx]} ]; then
+      place_proc_ids[$newidx]="${place_proc_ids[$idx]}"
+      place_domains[$newidx]=${place_domains[$idx]}
+    fi
+  done
+done
+_debug_array place_proc_ids "Processor ID's per place (after filling domains)"
+
+# This is the total number of unique areas
+num_places=${#place_proc_ids[@]}
+num_places_m1=$((num_places - 1))
+
 if [ $num_places -lt $num_threads ]; then
+
   echo >&2 "$_prefix got fewer places than threads"
   echo >&2 "$_prefix   omp_num_places  = $num_places"
   echo >&2 "$_prefix   omp_num_threads = $num_threads"
@@ -184,41 +380,7 @@ if [ $num_places -lt $num_threads ]; then
 fi
 
 
-# Parse the places constructs
-place_proc_ids=()
-place_num_procs=()
-
-# Reg-exp for handling the format
-# An example line looks something like this:
-# omp [1] place_proc_ids  : 0,2,4
-# - [1] == 2nd place specification
-# - 0 2 4 == the 2nd thread can be places on either of these core IDs
-place_proc_ids_re="omp \[([ 0-9]*)\] place_proc_ids[ ]*:[ ]*(.*)"
-while IFS= read -r omp_place_proc_ids
-do
-  if [[ $omp_place_proc_ids =~ $place_proc_ids_re ]]; then
-    place_proc_ids[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"
-    tmp=(${BASH_REMATCH[2]/,/ })
-    place_num_procs[${BASH_REMATCH[1]}]="${#tmp[@]}"
-  fi
-done < $tmpfile
-
-
-_debug_array place_num_procs "Number of processor places per place"
-_debug_array place_proc_ids "Processor ID's per place"
-
-# Create a hash-array that can be used to check for double runs.
-# Possible scenarios are:
-#  OMP_PLACES={0:4}:2:4,{0:4}:2:4
-# the above should do something similar to this:
-#  OMP_PLACES={0:4},{4:4},{0:4},{4:4}
-declare -A place_proc_ids_runned=()
-
-# This is the total number of unique areas
-num_places=${#place_proc_ids[@]}
-num_places_m1=$((num_places - 1))
-
-# Figure out the max size of the format specifier
+# Figure out the max size of the format specifier.
 # And then construct the actual format specifier that is used to
 # create a consistent table of output.
 max_len=0
@@ -233,15 +395,10 @@ fmt="%${max_len}s"
 # an array with the indices of the places that should be created
 # for the run.
 # This custom loop construct will be equivalent to a
-# OMP_NUM_THREADS X-nested loop construct.
-declare -a bench_places
-
+#   OMP_NUM_THREADS X-nested loop construct.
 # Setup the initial benchmark
-for id in $(seq 1 $num_threads)
-do
-  let id--
-  bench_places[$id]=$id
-done
+declare -a bench_places=($(seq 0 $((num_threads - 1))))
+
 
 function loop_bench_places {
   local id=$1
@@ -292,13 +449,13 @@ function run_bench_places {
   for id in ${bench_places[@]}
   do
     # Print out the fields
-    if [[ $_no_place_info -eq 0 ]]; then
+    if [[ $_without_place_info -eq 0 ]]; then
       # Explicitly do not put in a line-feed
       printf "$fmt " "${place_proc_ids[$id]}"
     fi
     OMP_PLACES="$OMP_PLACES,{${place_proc_ids[$id]}}"
   done
-  # Remove initial ,
+  # Remove initial ','
   OMP_PLACES="${OMP_PLACES:1}"
 
   if [[ -n "$DEBUG" ]]; then
@@ -324,12 +481,10 @@ do
     exit $retval
   fi
 
-  [ $_only_one -eq 1 ] && break
+  [ $_single -eq 1 ] && break
   loop_bench_places $((num_threads - 1))
   # Check if we should continue
   [ $? -ne 0 ] && break
 done
-
-_debug_array bench_places "The final benchmark places"
 
 exit 0

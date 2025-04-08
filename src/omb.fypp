@@ -630,13 +630,13 @@ program main
    ! time the small memories.
    if (.not. option_set_it) then
       ! bump it up to more iterations for small memory footprints
-      if (bytes*bytes2MB < 5._real64) then
+      if (bytes*bytes2MB <= 5._real64) then
          options%it = 100
       end if
-      if (bytes*bytes2MB < 0.5_real64) then
+      if (bytes*bytes2MB <= 0.5_real64) then
          options%it = 500
       end if
-      if (bytes*bytes2MB < 0.125_real64) then
+      if (bytes*bytes2MB <= 0.125_real64) then
          options%it = 1000
       end if
    end if
@@ -734,14 +734,14 @@ program main
 
    ! OpenMP information
    if (info_env%show) then
+
       #:if defined('OMB_MPI')
          call show_info_mpi()
       #:else
          call show_info_omp()
       #:endif
-   end if
 
-   if (.not. dryrun) then ! only run in this case
+   else if (.not. dryrun) then ! only run in this case
 
       if (options%test) then
          ! Ensure that the test output is consistent
@@ -765,7 +765,7 @@ program main
 
       #:endif
 
-      if (rank_mpi == 0 .and. .not. (info_env%show .or. options%test)) then
+      if (rank_mpi == 0 .and. .not. options%test) then
 
          write (OUTPUT_UNIT, "(tr1,a,t12)", advance="no") trim(method_str)
          block
@@ -1003,7 +1003,7 @@ contains
       write (OUTPUT_UNIT, fmt_oa) "Default is 0 elements."
       write (OUTPUT_UNIT, fmt_nl)
 
-      write (OUTPUT_UNIT, fmt_opt_a) "threads", "number of threads used (superseeds OMP_NUM_TRHEADS)"
+      write (OUTPUT_UNIT, fmt_opt_a) "threads", "number of threads used (supersedes OMP_NUM_TRHEADS)"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "debug", "print-out additional debug information"
@@ -1031,6 +1031,10 @@ contains
          &//"num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
       write (OUTPUT_UNIT, fmt_nl) "running 2 warmup iterations, then 200 iterations, " &
          &//"with serial first-touch of the arrays."
+
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_nl) "Notes:"
+      write (OUTPUT_UNIT, fmt_nl) "If OMP_SCHEDULE is unset, it will default to OMP_SCHEDULE=static,0"
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl)
