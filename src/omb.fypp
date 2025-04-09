@@ -205,10 +205,12 @@ program main
                      allocate (option_kernel_teams_distribute_do_t::options%kernel)
                   #:endif
                   #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                     case ("teams:parallel:manual")
+                     allocate (option_kernel_teams_parallel_manual_t::options%kernel)
                      case ("teams:parallel:do")
-                     allocate (option_kernel_teams_do_t::options%kernel)
+                     allocate (option_kernel_teams_parallel_do_t::options%kernel)
                      case ("teams:parallel:loop")
-                     allocate (option_kernel_teams_loop_t::options%kernel)
+                     allocate (option_kernel_teams_parallel_loop_t::options%kernel)
                   #:endif
                #:endif
             case default
@@ -961,6 +963,7 @@ contains
       write (OUTPUT_UNIT, fmt_oa) " - loop -> use the parallel loop workshare clause"
       #:if defined("OMB_OMP_TEAMS")
          #:if defined("OMB_OMP_TEAMS_PARALLEL")
+            write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:manual -> abuse the teams parallel workshare clause"
             write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:do -> abuse the teams parallel do workshare clause"
             write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:loop-> abuse the teams parallel loop workshare clause"
          #:endif

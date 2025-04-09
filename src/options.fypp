@@ -126,6 +126,17 @@ module options_m
    type, public, extends(option_kernel_teams_distribute_t) :: option_kernel_teams_distribute_do_t
    end type
 
+   !< Use the teams parallel construct.
+   !<
+   !< This uses the teams (force-fully sets num_team=1) and then uses
+   !< the threads to a worksharing clause using `parallel` and a manual splitting.
+   !< Kind of abusing the teams construct.
+   !<
+   !< All teams constructs lack a synchronization technique
+   !< because the barrier requires all threads in a team to participate.
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_parallel_manual_t
+   end type
+
    !< Use the teams parallel do construct.
    !<
    !< This uses the teams (force-fully sets num_team=1) and then uses
@@ -134,7 +145,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_do_t
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_parallel_do_t
    end type
 
    !< Use the teams parallel loop construct.
@@ -145,7 +156,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_loop_t
+   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_parallel_loop_t
    end type
 
 contains
@@ -179,9 +190,11 @@ contains
          name = "teams:distribute"
       type is (option_kernel_teams_distribute_do_t)
          name = "teams:distribute:do"
-      type is (option_kernel_teams_do_t)
+      type is (option_kernel_teams_parallel_manual_t)
+         name = "teams:parallel:manual"
+      type is (option_kernel_teams_parallel_do_t)
          name = "teams:parallel:do"
-      type is (option_kernel_teams_loop_t)
+      type is (option_kernel_teams_parallel_loop_t)
          name = "teams:parallel:loop"
       class default
          name = "<unset>"
