@@ -122,7 +122,7 @@ element. E.g. a `-dtype 64` equals 8 bytes per element. Hence, `dtypes/elem=3` r
 in `3*8=24` bytes per element operation (equivalent to STREAMS way of counting).
 
 | Method | Operation | dtypes/elem | FLOPS/elem |
-| ---- | --------- | ----------- | -------- |
+| ---- | --------- | -----------:| --------:|
 | `triad` | `a = b + c*2` | 3 | 2 |
 | `tetrad` | `a = b + c*d` | 4 | 2 |
 | `pentad` | `a = b*c + d*e` | 5 | 3 |
