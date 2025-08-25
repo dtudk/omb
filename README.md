@@ -110,24 +110,28 @@ Here are the most commonly used options for `omb`:
 | `-n <size>` | Specify the full size of allocated arrays. |
 | | E.g. `-n 2MB` (`kB`, `MB`, `GB`, `TB` are allowed). |
 | `-it <count>` | Take the minimum timing out of this many iterations. |
-| `-dtype 32\|64\|128` | Use the data-type with this many bytes per element. |
+| `-dtype 32\|64\|128` | Use the data-type with this many bits per element. |
 | `-kernel <name>` | Specify the OpenMP construct used in the benchmark. <br> Please see `omb --help` for available kernels. |
 
 Besides the optional flags, the benchmark includes a large number of
 different methods. The default method to run the benchmark is the
 `triad` method.
 
-| Method | Operation |
-| ---- | --------- |
-| `triad` | `a = b + c*2` |
-| `tetrad` | `a = b + c*d` |
-| `pentad` | `a = b*c + d*e` |
-| `axpy` |  `a = a + b*2` |
-| `scale` | `a = b*2` |
-| `add` |   `a = b + c` |
-| `fill` |  `a = 2.` |
-| `sum` |   `res = sum(a)` |
-| `copy` |  `a = b` |
+Here `dtypes/elem` is the number of basic `dtype` byte sizes for each
+element. E.g. a `-dtype 64` equals 8 bytes per element. Hence, `dtypes/elem=3` results
+in `3*8=24` bytes per element operation (equivalent to STREAMS way of counting).
+
+| Method | Operation | dtypes/elem | FLOPS/elem |
+| ---- | --------- | ----------- | -------- |
+| `triad` | `a = b + c*2` | 3 | 2 |
+| `tetrad` | `a = b + c*d` | 4 | 2 |
+| `pentad` | `a = b*c + d*e` | 5 | 3 |
+| `axpy` |  `a = a + b*2` | 2 | 2 |
+| `scale` | `a = b*2` | 2 | 1 |
+| `add` |   `a = b + c` | 3 | 1 |
+| `fill` |  `a = 2.` | 1 | 0 |
+| `sum` |   `res = sum(a)` | 1 | 1 |
+| `copy` |  `a = b` | 2 | 0 |
 
 
 As an example lets invoke `omb` with
