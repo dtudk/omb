@@ -119,22 +119,22 @@ program main
          call read_and_check_next_arg(iarg, arg)
 
          select case (arg)
-         case ("-debug", "--debug")
+         case ("-debug")
             options%debug = .true.
 
-         case ("-test", "--test")
+         case ("-test")
             options%test = .true.
 
-         case ("-env", "--env")
+         case ("-env")
             info_env%show = .true.
 
-         case ("-env-teams", "--env-teams")
+         case ("-env-teams")
             ! Also show teams information
             ! Default to not show it since it gets quite verbose!
             info_env%teams = .true.
             info_env%show = .true.
 
-         case ("-threads", "--threads")
+         case ("-threads")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, -threads has no argument"
@@ -151,7 +151,7 @@ program main
                stop 4
             end if
 
-         case ("-kernel", "--kernel")
+         case ("-kernel")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, -kernel has no argument"
@@ -278,7 +278,7 @@ program main
             method = METHOD_FALSE_SHARING_TETRADD
             narrays = 4
 
-         case ("-dtype", "--dtype")
+         case ("-dtype")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, -dtype has no argument"
@@ -311,7 +311,7 @@ program main
 
             end select
 
-         case ("-first-touch", "--first-touch", "-ft")
+         case ("-first-touch", "-ft")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, -first-touch has no argument"
@@ -332,7 +332,7 @@ program main
                stop 3
             end select
 
-         case ("-warmup", "--warmup")
+         case ("-warmup")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, --warmup has no argument"
@@ -349,7 +349,7 @@ program main
                stop 4
             end if
 
-         case ("-it", "--it")
+         case ("-it")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, --it has no argument"
@@ -367,7 +367,7 @@ program main
                stop 4
             end if
 
-         case ("-n", "--n", "-s", "--size")
+         case ("-n", "-s")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, -n/-s has no argument"
@@ -406,7 +406,7 @@ program main
                stop 4
             end if
 
-         case ("-offset", "--offset")
+         case ("-offset")
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, --offset has no argument"
@@ -423,11 +423,11 @@ program main
                stop 4
             end if
 
-         case ("norun", "-dryrun", "--dryrun")
+         case ("norun", "-dryrun")
 
             dryrun = .true.
 
-         case ("help", "--help", "-help", "-h", "--h")
+         case ("help", "-help", "-h")
 
             call print_help()
 
@@ -814,6 +814,11 @@ contains
       if (len_arg > len(arg)) then
          write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Argument", iarg, "is too long! (>256)"
          stop 2
+      end if
+
+      if (arg(1:2) == "--") then
+         arg(1:len(arg) - 1) = arg(2:)
+         arg(len(arg):len(arg)) = " "
       end if
 
    end subroutine

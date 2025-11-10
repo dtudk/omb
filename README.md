@@ -80,7 +80,7 @@ formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
 
 - `OMB_TIMING`
   By default, `omb` will use the OpenMP library timing routines.
-  However, one can selectively use the fortran intrinsics (`system_clock`).
+  However, one can selectively use the fortran intrinsic (`system_clock`).
 
   Please compile `omb`, then run `omb -env` and check the timing precision
   of both, they are typically the same precision. Select the one with
@@ -158,8 +158,8 @@ The columns are described in this small box, `omb --help` will also show this in
 | `TIME_AVG`      | average runtime of iterations [s] |
 | `TIME_STD`      | Bessel corrected standard deviation of runtime [s] |
 | `TIME_MAX`      | maximum runtime of iterations [s] |
-| `BANDWIDTH_GBS` | maxmimum bandwidth using `TIME_MIN` [GB/s] |
-| `GFLOPS`        | maxmimum FLOPS using `TIME_MIN` [G/s] |
+| `BANDWIDTH_GBS` | maximum bandwidth using `TIME_MIN` [GB/s] |
+| `GFLOPS`        | maximum FLOPS using `TIME_MIN` [G/s] |
 
 
 ### Kernels
@@ -169,7 +169,7 @@ OpenMP allows several ways to utilize parallelism.
 | Kernel | OpenMP construct |
 | ----- | ----- |
 | `do` | `!$omp parallel do` |
-| `do simd` | `!$omp parallel do simd` |
+| `do:simd` | `!$omp parallel do simd` |
 | `manual` | `!$omp parallel` |
 | `workshare` | `!$omp parallel workshare` |
 | `loop` | `!$omp parallel loop` |
