@@ -1,7 +1,7 @@
 
 # Do the preprocessing
 omb_fyppify(
-  COMMENT "fyppifying source codes"
+  COMMENT "declaring fypp sources in src/"
   FILES
     benchmarks.fypp
     options.fypp
@@ -13,7 +13,7 @@ omb_fyppify(
 )
 
 
-# Finally define the fdict library
+# Finally define the omb executable
 add_executable(
   omb
   ${omb_fypp_sources}

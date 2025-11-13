@@ -80,8 +80,8 @@
 #   OMP_PLACES={1,2},{3,4},{1,2} omb $@
 #   OMP_PLACES={1,2},{3,4},{3,4} omb $@
 
-readonly _prefix="omb: "
-readonly _prefix_debug="omb-debug: "
+readonly _prefix="omb:"
+readonly _prefix_debug="omb-debug:"
 
 # Variable used for regexp of the place_proc_ids
 # It will be used to extract the placement ID's of
@@ -125,6 +125,13 @@ while [ $# -gt 0 ]; do
     -Dwithout-place-info)
       _without_place_info=1
       ;;
+    -h|--help)
+
+      echo "$0 help information"
+
+      shift
+      exit 0
+      ;;
     *)
       _args+=($1)
       ;;
@@ -157,9 +164,9 @@ fi
 
 function error_show_tmp() {
   # Simple function to show the temporary content, mainly for debugging
-  echo >&2 "$_prefix Content of the $OMB_EXE -env for figuring out places.."
-  echo >&2 "$_prefix Temporary files: $tmpdomains and $tmpplaces"
-  cat >&2 $tmpplaces
+  echo >&2 "$_prefix Temporary files with content of the $OMB_EXE -env"
+  echo >&2 "$_prefix    $tmpdomains contains export for OMP_PLACES=$_domains"
+  echo >&2 "$_prefix    $tmpplaces contains export for OMP_PLACES=$INPUT_OMP_PLACES"
 }
 
 function _debug_array {
@@ -187,6 +194,8 @@ function _debug_array {
   esac
 }
 
+
+# Retrieve information from the environment file that omb --env spits out.
 function get_env {
   local var_name="$1"
   local -n var="$1"
@@ -272,7 +281,7 @@ tmpplaces=$(mktemp)
 # or not.
 # It will also be used to figure out if round-robin places are available.
 OMP_PLACES="$_domains" OMP_NUM_THREADS=1 $OMB_EXE -env 2>/dev/null > $tmpdomains
-$OMB_EXE -env 2>/dev/null > $tmpplaces
+OMP_PLACES="$INPUT_OMP_PLACES" $OMB_EXE -env 2>/dev/null > $tmpplaces
 
 # Get all available places depending on the _domains variable.
 # If the hardware has HW-threads, and _domains=cores, then
@@ -281,30 +290,41 @@ $OMB_EXE -env 2>/dev/null > $tmpplaces
 # place is overlapping several domains.
 get_env domains_place_proc_ids $tmpdomains -place-proc-ids
 
-_debug_array domains_place_proc_ids "Processor ID's per domain"
+_debug_array domains_place_proc_ids "Processor ID's per domain (irrespective of OMP_PLACES)"
 
 
 # Get information on the user-requested allowed places.
 # An example line looks something like this:
 # omp [1] place_proc_ids  : 0,2,4
 # - [1] == 2nd place specification
-# - 0 2 4 == the 2nd thread can be places on either of these core IDs
+# - 0 2 4 == the 2nd place consists of either of these core IDs
 # In this case the read proc id's and num-places are with respect
-# to the default OMP_PLACES=cores|threads
+# to the user defined OMP_PLACES
 get_env place_proc_ids $tmpplaces -place-proc-ids
 get_env num_threads $tmpplaces -num-threads
+num_threads_m1=$num_threads
+let num_threads_m1--
 
-_debug_array place_proc_ids "Processor ID's per place"
+_debug_array place_proc_ids "Processor ID's per place (user defined)"
 
 
 # We need to assert that all `place_proc_ids` only overlaps with
 # a single domain in `domains_place_proc_ids`.
-declare -a place_domains
-max_domains=0
+# The below loop will check for each place list how many domains
+# they overlap with.
+# For example:
+#   Thread domains yields {0,1},{2,3},4,5
+# then
+#   OMP_PLACES={0,1},{2,4}
+# will have the first place ({0,1}) overlap with 1 domain.
+# and will have the second place ({2,4}) overlap with 2 domains.
+# This is influenced by domains=threads|cores etc.
+declare -a place_ndomains
+max_ndomains=0
 for idx in ${!place_proc_ids[@]}
 do
   # Reset counter
-  domain_counter=0
+  ndomain_counter=0
 
   for didx in ${!domains_place_proc_ids[@]}
   do
@@ -317,32 +337,36 @@ do
       )
 
     if [ ${#tmp[@]} -gt 0 ]; then
-      let domain_counter++
+      let ndomain_counter++
     fi
 
   done
   # Store the number of domains for this place
-  place_domains[$idx]=$domain_counter
-  if [ $domain_counter -gt $max_domains ]; then
+  place_ndomains[$idx]=$ndomain_counter
+  if [ $ndomain_counter -gt $max_ndomains ]; then
     # track the maximum number of spanning domains for any place
-    max_domains=$domain_counter
+    max_ndomains=$ndomain_counter
   fi
 
-  if [ $domain_counter -lt 1 ]; then
+  if [ $ndomain_counter -lt 1 ]; then
     echo >&2 "$_prefix place index ${idx} with places: ${place_proc_ids[$idx]}"
-    echo >&2 "$_prefix overlapped with ${domain_counter} domains."
+    echo >&2 "$_prefix overlapped with ${ndomain_counter} domains."
     echo >&2 "$_prefix The requested placement *must* overlap with at least 1 domain!"
     exit 5
   fi
 done
+_debug_array place_ndomains "Number of overlapping domains for each place."
 
 
 # If the # of places < # of thread
-# we will amend the places by the places which spans multiple domains.
+# we will append the places by the places which spans multiple domains.
+# We can only append more places if it overlaps multiple domains.
+# This will *NOT* ensure that there is no over subscription.
+# That has to be the users responsibility for the time being.
 
 # Add all places which spans more than 1 domain.
-# This will put its domain in as many times as
-for idomain in $(seq 2 $max_domains)
+# This will put its domain in as many times as needed until the place
+for idomain in $(seq 2 $max_ndomains)
 do
   for idx in ${!place_proc_ids[@]}
   do
@@ -355,13 +379,13 @@ do
 
     # Check if this place has enough domains to add a new
     # place to the list.
-    if [ $idomain -le ${place_domains[$idx]} ]; then
+    if [ $idomain -le ${place_ndomains[$idx]} ]; then
       place_proc_ids[$newidx]="${place_proc_ids[$idx]}"
-      place_domains[$newidx]=${place_domains[$idx]}
+      place_ndomains[$newidx]=${place_ndomains[$idx]}
     fi
   done
 done
-_debug_array place_proc_ids "Processor ID's per place (after filling domains)"
+_debug_array place_proc_ids "Processor ID's per place (after duplicating missing places)"
 
 # This is the total number of unique areas
 num_places=${#place_proc_ids[@]}
@@ -389,6 +413,8 @@ do
   len=${#place_proc_ids[$i]}
   [[ $len -gt $max_len ]] && max_len=$len
 done
+# This ensures that each thread placement has the same format.
+# This is important when cycling through all of the places.
 fmt="%${max_len}s"
 
 # Now we define a custom loop construct, which will create
@@ -396,10 +422,11 @@ fmt="%${max_len}s"
 # for the run.
 # This custom loop construct will be equivalent to a
 #   OMP_NUM_THREADS X-nested loop construct.
-# Setup the initial benchmark
-declare -a bench_places=($(seq 0 $((num_threads - 1))))
 
+# Define the array.
+declare -a bench_places=($(seq 0 $num_threads_m1 ))
 
+# Create a nested loop construct.
 function loop_bench_places {
   local id=$1
   shift
@@ -445,7 +472,7 @@ function run_bench_places {
 
   # Incrementally add to OMP_PLACES until all places has been
   # specified.
-  OMP_PLACES=
+  OMP_PLACES=""
   for id in ${bench_places[@]}
   do
     # Print out the fields
@@ -482,7 +509,7 @@ do
   fi
 
   [ $_single -eq 1 ] && break
-  loop_bench_places $((num_threads - 1))
+  loop_bench_places $num_threads_m1
   # Check if we should continue
   [ $? -ne 0 ] && break
 done
