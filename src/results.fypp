@@ -67,6 +67,8 @@ contains
       integer(${OMB_INT_KIND}$) :: n
 
       this%narrays = narrays
+      ! elem_bits comes from `storage_size` which is truly bits.
+      ! Hence we divide by 8 to move to bytes.
       this%memory_mb = real(n, real64)*elem_bits*narrays/(8._real64*1024**2)
       this%gflop = elem_flop*real(n, real64)/1000**3
 
