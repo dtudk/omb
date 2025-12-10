@@ -711,6 +711,9 @@ program main
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", nint(results%info%element_bytes(), int32)
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
       write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", results%info%narrays
+      write (OUTPUT_UNIT, debug_fmt_i) "memory_store", results%info%stores
+      write (OUTPUT_UNIT, debug_fmt_i) "memory_read", results%info%reads
+      write (OUTPUT_UNIT, debug_fmt_i) "flop", results%info%flop
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       block
          character(len=32) :: name
@@ -922,7 +925,7 @@ contains
 
    subroutine print_help()
 
-      character(len=256) :: arg
+      character(len=512) :: arg
       integer :: len_arg
 
       character(len=*), parameter :: fmt_opt_a = "(t3,'--',a,t18,': ',a)"
@@ -933,13 +936,14 @@ contains
       character(len=*), parameter :: fmt_nl = "(a)"
 
       ! Get executable name
+      arg = " "
       call get_command_argument(0, arg, length=len_arg)
       write (OUTPUT_UNIT, '(2a)') "OpenMP benchmark program: ", trim(arg)
       write (OUTPUT_UNIT, fmt_nl)
-      write (OUTPUT_UNIT, '(a)') "STREAM like OpenMP benchmark program written in fortran."
+      write (OUTPUT_UNIT, fmt_nl) "STREAM like OpenMP benchmark program written in fortran."
       write (OUTPUT_UNIT, fmt_nl)
 
-      write (OUTPUT_UNIT, '(a)') "Methods:"
+      write (OUTPUT_UNIT, fmt_nl) "Methods:"
       write (OUTPUT_UNIT, fmt_arg_a) "triad", "a = b + c*2  [default]"
       write (OUTPUT_UNIT, fmt_arg_a) "tetrad", "a = b + c*d"
       write (OUTPUT_UNIT, fmt_arg_a) "pentad", "a = b*c + d*e"
@@ -955,7 +959,7 @@ contains
       write (OUTPUT_UNIT, fmt_aa) "false-sharing access."
 
       write (OUTPUT_UNIT, fmt_nl)
-      write (OUTPUT_UNIT, '(a)') "Options:"
+      write (OUTPUT_UNIT, fmt_nl) "Options:"
 
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
       write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory."
@@ -1017,10 +1021,10 @@ contains
       write (OUTPUT_UNIT, fmt_oa) "Default is 1."
       write (OUTPUT_UNIT, fmt_nl)
 
+      write (OUTPUT_UNIT, fmt_opt_a) "padding", "(alias for offset)"
       write (OUTPUT_UNIT, fmt_opt_a) "offset", "number of elements added to each array for offsetting allocations"
       write (OUTPUT_UNIT, fmt_oa) "The offset elements are not iterated."
       write (OUTPUT_UNIT, fmt_oa) "Default is 0 elements."
-      write (OUTPUT_UNIT, fmt_opt_a) "padding", "(alias for offset)"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "threads", "number of threads used (supersedes OMP_NUM_TRHEADS)"
@@ -1063,10 +1067,12 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
       block
          character(len=*), parameter :: fmt_col = "(t2,a,t15,' : ',a)"
+         character(len=*), parameter :: fmt_info = "(t18,a)"
 
          write (OUTPUT_UNIT, fmt_col) "METHOD", "name of the method running"
          write (OUTPUT_UNIT, fmt_col) "KERNEL", "which OpenMP kernel used"
-         write (OUTPUT_UNIT, fmt_col) "FIRST_TOUCH", "0 for master thread first-touch, 1 for distributed first-touch"
+         write (OUTPUT_UNIT, fmt_col) "FIRST_TOUCH", "0 for master thread first-touch"
+         write (OUTPUT_UNIT, fmt_info) "1 for distributed first-touch"
          write (OUTPUT_UNIT, fmt_col) "ELEM_B", "number of bytes per element in the array [B]"
          write (OUTPUT_UNIT, fmt_col) "MEM_MB", "size of all allocated arrays [MB]"
          write (OUTPUT_UNIT, fmt_col) "TIME_MIN", "minimum runtime of iterations [s]"
@@ -1074,6 +1080,7 @@ contains
          write (OUTPUT_UNIT, fmt_col) "TIME_STD", "Bessel corrected standard deviation of runtime [s]"
          write (OUTPUT_UNIT, fmt_col) "TIME_MAX", "maximum runtime of iterations [s]"
          write (OUTPUT_UNIT, fmt_col) "BANDWIDTH_GBS", "maxmimum bandwidth using TIME_MIN [GB/s]"
+         write (OUTPUT_UNIT, fmt_info) "Calculated by the number of reads+stores each iteration does"
          write (OUTPUT_UNIT, fmt_col) "GFLOPS", "maxmimum FLOPS using TIME_MIN [G/s]"
       end block
 
