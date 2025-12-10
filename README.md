@@ -121,17 +121,17 @@ Here `dtypes/elem` is the number of basic `dtype` byte sizes for each
 element. E.g. a `-dtype 64` equals 8 bytes per element. Hence, `dtypes/elem=3` results
 in `3*8=24` bytes per element operation (equivalent to STREAMS way of counting).
 
-| Method | Operation | dtypes/elem | FLOPS/elem |
-| ---- | --------- | -----------:| --------:|
-| `triad` | `a = b + c*2` | 3 | 2 |
-| `tetrad` | `a = b + c*d` | 4 | 2 |
-| `pentad` | `a = b*c + d*e` | 5 | 3 |
-| `axpy` |  `a = a + b*2` | 2 | 2 |
-| `scale` | `a = b*2` | 2 | 1 |
-| `add` |   `a = b + c` | 3 | 1 |
-| `fill` |  `a = 2.` | 1 | 0 |
-| `sum` |   `res = sum(a)` | 1 | 1 |
-| `copy` |  `a = b` | 2 | 0 |
+| Method   | Operation       | dtypes/elem | FLOP/elem | MOP/elem |
+| -------- | --------------- | -----------:| --------:| ------: |
+| `triad`  | `a = b + c*2`   | 3 | 2 | 3 |
+| `tetrad` | `a = b + c*d`   | 4 | 2 | 4 |
+| `pentad` | `a = b*c + d*e` | 5 | 3 | 5 |
+| `axpy`   | `a = a + b*2`   | 2 | 2 | 3 |
+| `scale`  | `a = b*2`       | 2 | 1 | 2 |
+| `add`    | `a = b + c`     | 3 | 1 | 3 |
+| `fill`   | `a = 2.`        | 1 | 0 | 1 |
+| `sum`    | `res = sum(a)`  | 1 | 1 | 1 |
+| `copy`   |  `a = b`        | 2 | 0 | 2 |
 
 
 As an example lets invoke `omb` with
@@ -147,8 +147,8 @@ $> OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb triad -kernel do:simd -it 10 -n 20M
  triad do:simd 1 8   1.99999924E+01   5.18938001E-04   6.45935400E-04   1.15988655E-08   8.63896001E-04  37.63694799E+00   3.36769710E+00
 ```
 The columns are described in this small box, `omb --help` will also show this information.
-| Short name | Description |
-| ---- | ------ |
+| Short name      | Description |
+| --------------- | ------ |
 | `METHOD`        | name of the method running |
 | `KERNEL`        | which kernel used in `METHOD` |
 | `FIRST_TOUCH`   | 0 for master thread first-touch, 1 for distributed first-touch |
@@ -168,17 +168,17 @@ OpenMP allows several ways to utilize parallelism.
 
 | Kernel | OpenMP construct |
 | ----- | ----- |
-| `do` | `!$omp parallel do` |
-| `do:simd` | `!$omp parallel do simd` |
-| `manual` | `!$omp parallel` |
-| `workshare` | `!$omp parallel workshare` |
-| `loop` | `!$omp parallel loop` |
-| `taskloop` | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
-| `taskloop:simd` | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop simd`</pre> |
-| `teams:manual` | `!$omp teams` |
-| `teams:distribute` | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
+| `do`                  | `!$omp parallel do` |
+| `do:simd`             | `!$omp parallel do simd` |
+| `manual`              | `!$omp parallel` |
+| `workshare`           | `!$omp parallel workshare` |
+| `loop`                | `!$omp parallel loop` |
+| `taskloop`            | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
+| `taskloop:simd`       | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop simd`</pre> |
+| `teams:manual`        | `!$omp teams` |
+| `teams:distribute`    | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
 | `teams:distribute:do` | <pre>`!$omp teams`<br>`!$omp distribute parallel do`</pre> |
-| `teams:parallel:do` | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
+| `teams:parallel:do`   | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
 | `teams:parallel:loop` | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
 
 The `teams` construct was mainly introduced in OpenMP to perform distributed

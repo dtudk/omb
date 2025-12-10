@@ -8,28 +8,56 @@ module results_m
 
    private
 
+   type, private :: algorithm_info_t
+
+      !< For memory store/read, per element of the arrays.
+      integer :: stores = 1, reads = 1
+      !< For FLOP per element of the arrays.
+      integer :: flop = 1
+      !< Number of arrays
+      integer :: narrays
+      !< Number of elements per array in each of the dimensions
+      integer(${OMB_INT_KIND}$) :: N(2) = 1
+      !< Storage size in bits per element
+      integer :: bits
+
+   contains
+
+      procedure, pass :: correct_values => info_correct_values
+
+      !< Total number of elements.
+      procedure, pass :: elements => info_elements
+      !< Get the full size in MB of the arrays
+      procedure, pass :: MB => info_memory_mb
+      !< Get the size in MB of one element
+      procedure, pass :: element_MB => info_element_memory_mb
+      !< Get the size in Bytes of one element
+      procedure, pass :: element_bytes => info_element_memory_bytes
+
+      !< Number of Memory Operations (in Giga 1000^3)
+      procedure, pass :: GMOP => info_gmop
+
+      !< Number of Floating point Operations (in Giga 1000^3)
+      procedure, pass :: GFLOP => info_gflop
+
+   end type
+
    type, public :: results_t
 
       ! Timing of execution
       real(real64), allocatable :: times(:)
 
-      ! How many arrays are involved in the routine
-      integer :: narrays
-
-      ! Size of all allocated arrays
-      real(real64) :: memory_mb
-
-      ! gflop
-      real(real64) :: gflop
+      !< Info related to the benchmark algorithm.
+      type(algorithm_info_t) :: info
 
    contains
 
       procedure, pass :: allocate
-      procedure, pass :: update
       procedure, pass :: time_max
       procedure, pass :: time_min
       procedure, pass :: time_avg
       procedure, pass :: time_std
+      procedure, pass :: gmops
       procedure, pass :: gflops
       procedure, pass :: bandwidth_gbs
       #:if defined('OMB_MPI')
@@ -61,29 +89,24 @@ contains
 
    end subroutine
 
-   subroutine update(this, narrays, n, elem_flop, elem_bits)
-      class(results_t), intent(inout) :: this
-      integer :: narrays, elem_flop, elem_bits
-      integer(${OMB_INT_KIND}$) :: n
-
-      this%narrays = narrays
-      ! elem_bits comes from `storage_size` which is truly bits.
-      ! Hence we divide by 8 to move to bytes.
-      this%memory_mb = real(n, real64)*elem_bits*narrays/(8._real64*1024**2)
-      this%gflop = elem_flop*real(n, real64)/1000**3
-
-   end subroutine
-
    function gflops(this)
       class(results_t), intent(in) :: this
       real(real64) :: gflops
-      gflops = this%gflop/this%time_min()
+      gflops = this%info%gflop()/this%time_min()
+   end function
+   function gmops(this)
+      class(results_t), intent(in) :: this
+      real(real64) :: gmops
+      gmops = this%info%gmop()/this%time_min()
    end function
 
    function bandwidth_gbs(this) result(bandwidth)
       class(results_t), intent(in) :: this
       real(real64) :: bandwidth
-      bandwidth = this%memory_mb/this%time_min()/1024
+      ! Convert from GMOP to bandwidth, by scaling each
+      ! memory operation with the number of bytes and converting
+      ! SI Giga to Binary Giga = 1000/1024
+      bandwidth = this%info%element_bytes()*this%gmops()*(1000._real64/1024._real64)**3
    end function
 
    function time_max(this) result(time)
@@ -160,5 +183,67 @@ contains
       type(results_t), intent(inout) :: this
       call this%deallocate()
    end subroutine
+
+   subroutine info_correct_values(this, bytes)
+      class(algorithm_info_t), intent(inout) :: this
+      real(real64), intent(in) :: bytes
+
+      ! Local variables
+      integer(int64) :: big_N
+
+      ! First we'll do alignment, if necessary.
+      ! Sadly, for small arrays alignment is really bad.
+      ! So we don't do it.
+
+      ! From bits to bytes
+      big_N = nint(bytes*8/(this%bits*this%narrays), int64)
+      ! at this point, big_N is the total number of elements
+
+      ! Reduce n since the method multiplies by num_threads
+      if (this%N(2) > 1) then
+         associate (N1 => this%N(1), N2 => this%N(2))
+            ! N1 contains the full number of elements
+            big_N = max(1, nint(real(N1, real64)/N2, int64))
+         end associate
+      end if
+      this%N(1) = big_N
+
+   end subroutine
+
+   pure function info_elements(this) result(elements)
+      class(algorithm_info_t), intent(in) :: this
+      integer(int64) :: elements
+      elements = product(int(this%N, int64))*this%narrays
+   end function
+   pure function info_memory_mb(this) result(MB)
+      class(algorithm_info_t), intent(in) :: this
+      real(real64) :: MB
+      ! This is the iterated memory (not including padding!)
+      MB = this%elements()*this%element_MB()
+   end function
+   pure function info_element_memory_mb(this) result(MB)
+      class(algorithm_info_t), intent(in) :: this
+      real(real64) :: MB
+      ! Converting from elements to bytes
+      MB = this%element_bytes()/1024**2
+   end function
+   pure function info_element_memory_bytes(this) result(B)
+      class(algorithm_info_t), intent(in) :: this
+      real(real64) :: B
+      ! Converting from elements to bytes
+      B = this%bits/8._real64
+   end function
+
+   pure function info_gmop(this) result(GMOP)
+      class(algorithm_info_t), intent(in) :: this
+      real(real64) :: GMOP
+      GMOP = (this%stores + this%reads)*this%elements()/1000._real64**3
+   end function
+
+   pure function info_gflop(this) result(GFLOP)
+      class(algorithm_info_t), intent(in) :: this
+      real(real64) :: GFLOP
+      GFLOP = this%flop*this%elements()/1000._real64**3
+   end function
 
 end module results_m

@@ -37,22 +37,6 @@ program main
    character(len=*), parameter :: debug_fmt_l = "(a,t35,':',256(tr1,l0))"
    character(len=*), parameter :: debug_fmt_e = "(a,t35,':',256(tr1,en0.10))"
 
-   ! narrays follows number of arrays used for the method
-   integer, parameter :: MAX_NARRAYS = 5
-   integer :: method = METHOD_TRIADD
-   integer :: narrays = 3
-
-   ! TODO
-   integer, parameter :: DTYPE_REAL16 = 1
-   integer, parameter :: DTYPE_REAL32 = 2
-   integer, parameter :: DTYPE_REAL64 = 3
-   integer, parameter :: DTYPE_REAL128 = 4
-   integer :: dtype = DTYPE_REAL64
-
-   procedure(benchmark_method), pointer :: benchmark => null()
-
-   ! Method definitions
-   character(len=64) :: method_str
    ! Maximum byte size of *any* data-type.
    ! This is the aligned data size of the final number of elements.
    ! We don't do this based on what is available for the compiler.
@@ -60,22 +44,30 @@ program main
    ! depending on what the compiler supports.
    integer, parameter :: MIN_ELEM_BYTES = 2
    integer, parameter :: MAX_ELEM_BYTES = 16
-   integer :: elem_bits, elem_bytes, elem_alignment
-   integer(int64) :: big_n
-   integer(${OMB_INT_KIND}$) :: n, n_dim2
-   integer :: num_tasks = 0
 
    ! We need to at least have each array size on the order of 4 times the cache size
    ! to move the entire array out and ensure no caching is there...
    ! So, lets just take 4GB for safety.
    real(real64), parameter :: bytes2MB = 1._real64/1024**2
    real(real64), parameter :: DEFAULT_BYTES = 4._real64*1024**3
+
+   integer, parameter :: DTYPE_REAL16 = 1
+   integer, parameter :: DTYPE_REAL32 = 2
+   integer, parameter :: DTYPE_REAL64 = 3
+   integer, parameter :: DTYPE_REAL128 = 4
+   integer :: dtype = DTYPE_REAL64
+
+   ! Method definitions
    real(real64) :: bytes = DEFAULT_BYTES
+   integer :: method
+   character(len=64) :: method_str
+   integer :: num_tasks = 0
+   procedure(benchmark_interface), pointer :: benchmark => null()
+
    type(options_t) :: options
    type(results_t) :: results
 
    type(info_env_t) :: info_env
-   logical :: dryrun = .false.
 
    logical :: option_set_it = .false.
 
@@ -95,6 +87,13 @@ program main
 
    ! Initialize the timing
    call timing_initialize()
+
+   ! Defining the defaults
+   method = METHOD_TRIADD
+   results%info%narrays = 3
+   results%info%stores = 1
+   results%info%reads = 2
+   results%info%flop = 2
 
    ! Determine number of threads in this run...
 !$omp parallel shared(options)
@@ -226,57 +225,85 @@ program main
 
          case ("fill")
             method = METHOD_FILL
-            narrays = 1
+            results%info%narrays = 1
+            results%info%stores = 1
+            results%info%reads = 0
+            results%info%flop = 0
 
          case ("sum")
             method = METHOD_SUM
-            narrays = 1
+            results%info%narrays = 1
+            results%info%stores = 0
+            results%info%reads = 1
+            results%info%flop = 1
 
          case ("add")
             method = METHOD_ADD
-            narrays = 3
+            results%info%narrays = 3
+            results%info%stores = 1
+            results%info%reads = 2
+            results%info%flop = 1
 
          case ("copy")
             method = METHOD_COPY
-            narrays = 2
+            results%info%narrays = 2
+            results%info%stores = 1
+            results%info%reads = 1
+            results%info%flop = 0
 
          case ("scale")
             method = METHOD_SCALE
-            narrays = 2
+            results%info%narrays = 2
+            results%info%stores = 1
+            results%info%reads = 1
+            results%info%flop = 1
 
          case ("triadd", "triad")
             method = METHOD_TRIADD
-            narrays = 3
+            results%info%narrays = 3
+            results%info%stores = 1
+            results%info%reads = 2
+            results%info%flop = 2
 
          case ("tetraadd", "tetra", "tetrad", "tetradd", "tetraad")
             method = METHOD_TETRADD
-            narrays = 4
+            results%info%narrays = 4
+            results%info%stores = 1
+            results%info%reads = 3
+            results%info%flop = 2
 
          case ("pentaadd", "penta", "pentad", "pentadd", "pentaad")
             method = METHOD_PENTADD
-            narrays = 5
+            results%info%narrays = 5
+            results%info%stores = 1
+            results%info%reads = 4
+            results%info%flop = 3
 
-         case ("axpy")
+         case ("axpy", "daxpy", "saxpy")
             method = METHOD_AXPY
-            narrays = 2
-
-         case ("daxpy")
-            dtype = DTYPE_REAL64
-            method = METHOD_AXPY
-            narrays = 2
-
-         case ("saxpy")
-            dtype = DTYPE_REAL32
-            method = METHOD_AXPY
-            narrays = 2
+            results%info%narrays = 2
+            results%info%stores = 1
+            results%info%reads = 2
+            results%info%flop = 2
+            if (arg(1:1) == "d") then
+               dtype = DTYPE_REAL64
+            else if (arg(1:1) == "s") then
+               dtype = DTYPE_REAL32
+            end if
 
          case ("fs:triadd", "fs:triad")
             method = METHOD_FALSE_SHARING_TRIADD
-            narrays = 3
+            results%info%narrays = 3
+            results%info%stores = 1
+            results%info%reads = 2
+            results%info%flop = 2
 
          case ("fs:tetraadd", "fs:tetra", "fs:tetradd", "fs:tetrad")
             method = METHOD_FALSE_SHARING_TETRADD
-            narrays = 4
+            results%info%narrays = 4
+            results%info%stores = 1
+            results%info%reads = 3
+            results%info%flop = 2
 
          case ("-dtype")
 
@@ -381,32 +408,38 @@ program main
             ! Lower-case it (so kb == KB == kB).
             arg = lcase(trim(arg))
 
-            n = 0
-            ! We need to check if kb/kB/k, mb/MB/m, gb/GB/g is in the arg
-            do istr_size = 1, size(STR_SIZES)
-               idx = index(trim(arg), trim(STR_SIZES(istr_size)))
-               if (idx > 0) then
-                  if (options%debug) then
-                     write (OUTPUT_UNIT, *) "Converting", trim(arg)
-                     write (OUTPUT_UNIT, *) "To unit = ", trim(STR_SIZES(istr_size))
+            block
+               logical :: found
+
+               found = .false.
+               ! We need to check if kb/kB/k, mb/MB/m, gb/GB/g is in the arg
+               do istr_size = 1, size(STR_SIZES)
+                  idx = index(trim(arg), trim(STR_SIZES(istr_size)))
+                  if (idx > 0) then
+                     if (options%debug) then
+                        write (OUTPUT_UNIT, *) "Converting", trim(arg)
+                        write (OUTPUT_UNIT, *) "To unit = ", trim(STR_SIZES(istr_size))
+                     end if
+
+                     arg(idx:idx + 1) = " "
+                     read (arg, *) bytes
+                     ! this converts 10MB to
+                     ! 10 * 1024**2
+                     bytes = bytes*1024_int64**POWER_SIZES(istr_size)
+                     found = .true.
+                     exit
                   end if
+               end do
 
-                  arg(idx:idx + 1) = " "
-                  read (arg, *) bytes
-                  ! this converts 10MB to
-                  ! 10 * 1024**2
-                  bytes = bytes*1024_int64**POWER_SIZES(istr_size)
-                  n = 1
-                  exit
+               if (.not. found) then
+                  write (ERROR_UNIT, *) "Could not interpret your -n argument: ", trim(arg)
+                  stop 4
                end if
-            end do
 
-            if (n == 0) then
-               write (ERROR_UNIT, *) "Could not interpret your -n argument: ", trim(arg)
-               stop 4
-            end if
+            end block
 
-         case ("-offset")
+         case ("-padding", "-offset")
+            ! we allow padding as it might be simpler to understand
 
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, --offset has no argument"
@@ -425,7 +458,7 @@ program main
 
          case ("norun", "-dryrun")
 
-            dryrun = .true.
+            options%dryrun = .true.
 
          case ("help", "-help", "-h")
 
@@ -479,22 +512,23 @@ program main
 
    ! Generally, we will only use a single 2nd dimension.
    ! Only for false-sharing do we need a 2nd dimension.
-   n_dim2 = 1
+   ! This will be set later
+   results%info%N(2) = 1
 
    ! At this point, `bytes` is some size in bytes
    ! Lets convert this to the number of elements for the given dtype
    select case (dtype)
       #:if "real16" in REALS
          case (DTYPE_REAL16)
-         elem_bits = storage_size(1._real16)
+         results%info%bits = storage_size(1._real16)
       #:endif
    case (DTYPE_REAL32)
-      elem_bits = storage_size(1._real32)
+      results%info%bits = storage_size(1._real32)
    case (DTYPE_REAL64)
-      elem_bits = storage_size(1._real64)
+      results%info%bits = storage_size(1._real64)
       #:if "real128" in REALS
          case (DTYPE_REAL128)
-         elem_bits = storage_size(1._real128)
+         results%info%bits = storage_size(1._real128)
       #:endif
    case default
       write (ERROR_UNIT, *) "Unknown data-type!"
@@ -502,47 +536,15 @@ program main
    end select
 
    ! Convert bits -> bytes
-   if (mod(elem_bits, 8) /= 0) then
+   if (mod(results%info%bits, 8) /= 0) then
       write (ERROR_UNIT, *) "The data-type bit size is not divisible by 8."
+      write (ERROR_UNIT, *) "Currently not implemented!"
       stop 30
    end if
-   elem_bytes = elem_bits/8
 
    if (options%debug) then
       write (OUTPUT_UNIT, debug_fmt_i) "target_bytes [B]", nint(bytes, int64)
    end if
-
-   ! Store in safety variable
-   ! This will be the number of elements *per array*
-   big_n = nint(bytes/(MAX_ELEM_BYTES*narrays), int64)
-
-   ! We also add such that it is divisible by the number
-   ! data-type. In this way it makes comparing different data-types
-   ! much simpler.
-   ! This isn't fully complete when calculating sizes across
-   ! different methods. So for different data-types, but same
-   ! methods, this will provide a consistent memory usage.
-   ! For same-datatype, but different methods, there will
-   ! be small deviations.
-   ! This won't work for the false-sharing methods which
-   ! requires a different alignment.
-   elem_alignment = mod(big_n, MAX_ELEM_BYTES)
-   big_n = big_n + elem_alignment
-   ! Convert from the maximum elementtype to the current element type
-   elem_alignment = elem_alignment*MAX_ELEM_BYTES/elem_bytes
-   big_n = big_n*MAX_ELEM_BYTES/elem_bytes
-
-   ! For small sizes, the above alignment of data-types yields
-   ! memory sizes very different from what is requested.
-   ! I.e. for 12kB one could get 11.7kB and 12.5kB.
-   elem_alignment = 0
-   big_n = nint(bytes/(elem_bytes*narrays), int64)
-   if (big_n + options%offset > huge(n)) then
-      write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64."
-      write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_KIND=int64 (the default)."
-      stop 20
-   end if
-   n = big_n
 
    #:def CASE_DTYPE_BENCHMARK(name)
       select case (dtype)
@@ -602,14 +604,14 @@ program main
    case (METHOD_FALSE_SHARING_TRIADD)
       method_str = "fs:triad"
 
-      n_dim2 = options%num_threads
+      results%info%N(2) = options%num_threads
 
       @:CASE_DTYPE_BENCHMARK(bench_false_sharing_triadd)
 
    case (METHOD_FALSE_SHARING_TETRADD)
       method_str = "fs:tetrad"
 
-      n_dim2 = options%num_threads
+      results%info%N(2) = options%num_threads
 
       @:CASE_DTYPE_BENCHMARK(bench_false_sharing_tetradd)
 
@@ -620,30 +622,45 @@ program main
 
    end select
 
-   ! Reduce n since the method multiplies by num_threads
-   if (n_dim2 > 1) then
-      n = max(1, nint(real(n, real64)/n_dim2))
-      big_n = n*n_dim2
-   end if
-
    ! Adjust number of iterations based on the byte size.
+   call results%info%correct_values(bytes)
+   bytes = results%info%elements()*results%info%element_bytes()
+
+   ! Determine if the counters are too small
+   block
+      integer(${OMB_INT_KIND}$) :: huge_N
+      huge_N = huge(results%info%N(1))
+      if (int(results%info%N(1), int64) + options%offset > huge_N .or. &
+          product(int(results%info%N, int64)) > huge_N) then
+         write (ERROR_UNIT, *) "Cannot store the array size in the variable, must use int64."
+         write (ERROR_UNIT, *) "Please recompile the program with -DOMB_INT_KIND=int64 (the default)."
+         stop 20
+      end if
+   end block
+
    ! For very small arrays, we should do more iterations to correctly
-   bytes = real(big_n, real64)*elem_bytes*narrays
-   ! time the small memories.
-   if (.not. option_set_it) then
-      ! bump it up to more iterations for small memory footprints
-      if (bytes*bytes2MB <= 5._real64) then
-         options%it = 100
+   ! So depends on whether the option has been set
+   block
+      real(real64) :: MB
+      MB = results%info%MB()
+      ! time the small memories.
+      if (.not. option_set_it) then
+         ! bump it up to more iterations for small memory footprints
+         if (MB <= 5._real64) then
+            options%it = 100
+         end if
+         if (MB <= 0.5_real64) then
+            options%it = 500
+         end if
+         if (MB <= 0.125_real64) then
+            options%it = 1000
+         end if
       end if
-      if (bytes*bytes2MB <= 0.5_real64) then
-         options%it = 500
-      end if
-      if (bytes*bytes2MB <= 0.125_real64) then
-         options%it = 1000
-      end if
-   end if
+   end block
 
    ! In case the kernel is the taskloop, and the num_tasks is < 1, then
+   ! we must specify the correct number of tasks so there is a limited
+   ! overhead of the task scheduling.
    select type (kernel => options%kernel)
    class is (option_kernel_taskloop_t)
       if (kernel%num_tasks < 1) then
@@ -655,8 +672,8 @@ program main
          ! choice. So task size should be ~8 for optimal perf.
          ! Therefore we take the minimum:
          !    min(elements/8, 10 *num_threads)
-         if (big_n/8 < 10*options%num_threads) then
-            kernel%num_tasks = max(1, big_n/8)
+         if (results%info%N(1)/8 < 10*options%num_threads) then
+            kernel%num_tasks = max(1, results%info%N(1)/8)
          else
             kernel%num_tasks = 10*options%num_threads
          end if
@@ -664,18 +681,17 @@ program main
    end select
 
    ! At this point we should have:
-   ! big_n == total number of elements *per array*
    ! n == elements along the distributed array dimension (<= big_n)
 
    if (options%debug) then
-      write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", nint(bytes, int64)
-      write (OUTPUT_UNIT, debug_fmt_i) "elements_count", big_n
-      write (OUTPUT_UNIT, debug_fmt_i) "elements_alignment", elem_alignment
+      write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", &
+         nint(results%info%MB()/bytes2MB, int64)
+      write (OUTPUT_UNIT, debug_fmt_i) "elements_count", results%info%elements()
       block
          integer(int64) :: all_ibytes
          real(real64) :: all_mb
-         all_ibytes = big_n*elem_bytes*narrays
-         all_mb = real(all_ibytes, real64)/1024**2
+         all_mb = results%info%MB()
+         all_ibytes = nint(all_mb/bytes2MB, int64)
          select case (all_ibytes)
          case (:1024_int64 - 1)
             write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [B]", all_mb*1024**2
@@ -685,19 +701,16 @@ program main
             write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", all_mb
          case (1024_int64**3:1024_int64**4 - 1)
             write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [GB]", all_mb/1024
-         case (1024_int64**4:1024_int64**5 - 1)
+         case (1024_int64**4:)
             write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [TB]", all_mb/1024**2
-         case default
-            ! unknown... should likely never happen
-            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", all_mb
          end select
       end block
       write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [bits]", elem_bits
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", elem_bytes
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [b]", results%info%bits
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", nint(results%info%element_bytes(), int32)
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
-      write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", narrays
+      write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", results%info%narrays
       write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       block
          character(len=32) :: name
@@ -708,7 +721,6 @@ program main
       class is (option_kernel_taskloop_t)
          write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
       end select
-      ! Important to use big_n
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
       write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
       write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it
@@ -716,8 +728,9 @@ program main
       block
          integer(int64) :: all_ibytes
          real(real64) :: all_rbytes
-         all_ibytes = options%offset*elem_bytes*narrays*n_dim2
-         all_rbytes = real(all_ibytes, real64)
+         all_rbytes = options%offset*results%info%element_bytes()* &
+                      results%info%narrays*results%info%N(2)
+         all_ibytes = nint(all_rbytes, int64)
          select case (all_ibytes)
          case (:1024_int64 - 1)
             write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [B]", all_rbytes
@@ -725,11 +738,8 @@ program main
             write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [kB]", all_rbytes/1024
          case (1024_int64**2:1024_int64**3 - 1)
             write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [MB]", all_rbytes/1024**2
-         case (1024_int64**3:1024_int64**4 - 1)
+         case (1024_int64**3:)
             write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [GB]", all_rbytes/1024**3
-         case default
-            ! unknown... should likely never happen
-            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [B]", all_rbytes
          end select
       end block
    end if
@@ -743,7 +753,7 @@ program main
          call show_info_omp()
       #:endif
 
-   else if (.not. dryrun) then ! only run in this case
+   else if (.not. options%dryrun) then ! only run in this case
 
       if (options%test) then
          ! Ensure that the test output is consistent
@@ -754,7 +764,7 @@ program main
       ! Allocate the timings
       call results%allocate(options%it)
 
-      call benchmark(n, options, results)
+      call benchmark(results%info%N(1), options, results)
 
       ! Reduce the results
 
@@ -782,8 +792,8 @@ program main
             ! master
             write (OUTPUT_UNIT, "(tr1,i1)", advance="no") 0
          end if
-         write (OUTPUT_UNIT, "(tr1,i2)", advance="no") elem_bytes
-         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%memory_mb
+         write (OUTPUT_UNIT, "(tr1,i2)", advance="no") results%info%bits/8
+         write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%info%MB()
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_min()
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_avg()
          write (OUTPUT_UNIT, "(tr1,es16.8)", advance="no") results%time_std()
@@ -1008,7 +1018,9 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "offset", "number of elements added to each array for offsetting allocations"
+      write (OUTPUT_UNIT, fmt_oa) "The offset elements are not iterated."
       write (OUTPUT_UNIT, fmt_oa) "Default is 0 elements."
+      write (OUTPUT_UNIT, fmt_opt_a) "padding", "(alias for offset)"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "threads", "number of threads used (supersedes OMP_NUM_TRHEADS)"

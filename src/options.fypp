@@ -29,6 +29,9 @@ module options_m
       !< Whether we should print-out test info
       logical :: test = .false.
 
+      !< Whether we should do a dry-run
+      logical :: dryrun = .false.
+
       !< The kernel specification for the test runned.
       class(option_kernel_t), pointer :: kernel => null()
 

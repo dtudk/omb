@@ -110,9 +110,9 @@ module benchmarks_m
       public :: bench_false_sharing_tetradd_${real}$
    #:endfor
 
-   public :: benchmark_method
+   public :: benchmark_interface
    interface
-      subroutine benchmark_method(n, options, results)
+      subroutine benchmark_interface(n, options, results)
          use iso_fortran_env, only: ${OMB_INT_KIND}$
          use options_m, only: options_t
          use results_m, only: results_t
@@ -502,8 +502,6 @@ contains
 
          end select
 
-         call results%update(1, n, 1, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*0.5_${real}$
          end if
@@ -760,8 +758,6 @@ contains
 
          end select
 
-         call results%update(1, n, 0, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*fill
          end if
@@ -1016,8 +1012,6 @@ contains
 !$omp end parallel
 
          end select
-
-         call results%update(2, n, 0, storage_size(1.0_${real}$))
 
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*1.5_${real}$
@@ -1277,8 +1271,6 @@ contains
 
          end select
 
-         call results%update(2, n, 1, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*scale*1.5_${real}$
          end if
@@ -1535,8 +1527,6 @@ contains
 !$omp end parallel
 
          end select
-
-         call results%update(3, n, 1, storage_size(1.0_${real}$))
 
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+2.5_${real}$)
@@ -1798,8 +1788,6 @@ contains
 
          end select
 
-         call results%update(3, n, 2, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+scale*2.5_${real}$)
          end if
@@ -2058,8 +2046,6 @@ contains
 !$omp end parallel
 
          end select
-
-         call results%update(4, n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
@@ -2322,8 +2308,6 @@ contains
 
          end select
 
-         call results%update(5, n, 3, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*(1.5_${real}$*2.5_${real}$+3*3.5_${real}$)
          end if
@@ -2582,8 +2566,6 @@ contains
 
          end select
 
-         call results%update(2, n, 2, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(1:n)) - n*(0.5_${real}$+scale*1.5_${real}$)
          end if
@@ -2778,8 +2760,6 @@ contains
 
          end select
 
-         call results%update(3, options%num_threads*n, 2, storage_size(1.0_${real}$))
-
          if (options%test) then
             write (*, test_fmt) sum(a(:, 1:n)) - options%num_threads*n*(1.5_${real}$+scale*2.5_${real}$)
          end if
@@ -2971,8 +2951,6 @@ contains
 !$omp end parallel
 
          end select
-
-         call results%update(4, options%num_threads*n, 2, storage_size(1.0_${real}$))
 
          if (options%test) then
             write (*, test_fmt) sum(a(:, 1:n)) - options%num_threads*n*(1.5_${real}$+2.5_${real}$*3.5_${real}$)
