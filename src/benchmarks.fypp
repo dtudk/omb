@@ -464,7 +464,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime) reduction(+:sum_a)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a)
                   do i = 1, n
                      sum_a = sum_a + a(i)
                   end do
@@ -472,7 +472,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a) schedule(runtime) reduction(+:sum_a)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a) nontemporal(a)
                      do i = 1, n
                         sum_a = sum_a + a(i)
                      end do
@@ -747,7 +747,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = fill
                   end do
@@ -755,7 +755,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a)
                      do i = 1, n
                         a(i) = fill
                      end do
@@ -1027,7 +1027,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = b(i)
                   end do
@@ -1035,7 +1035,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b)
                      do i = 1, n
                         a(i) = b(i)
                      end do
@@ -1310,7 +1310,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = scale*b(i)
                   end do
@@ -1318,7 +1318,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b)
                      do i = 1, n
                         a(i) = scale*b(i)
                      end do
@@ -1593,7 +1593,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = b(i) + c(i)
                   end do
@@ -1601,7 +1601,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b,c) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c)
                      do i = 1, n
                         a(i) = b(i) + c(i)
                      end do
@@ -1878,7 +1878,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = b(i) + scale*c(i)
                   end do
@@ -1886,7 +1886,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b,c) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c)
                      do i = 1, n
                         a(i) = b(i) + scale*c(i)
                      end do
@@ -2162,7 +2162,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = b(i) + c(i)*d(i)
                   end do
@@ -2170,7 +2170,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b,c,d) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c,d)
                      do i = 1, n
                         a(i) = b(i) + c(i)*d(i)
                      end do
@@ -2448,7 +2448,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = b(i)*c(i) + d(i)*e(i)
                   end do
@@ -2456,7 +2456,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b,c,d,e) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c,d,e)
                      do i = 1, n
                         a(i) = b(i)*c(i) + d(i)*e(i)
                      end do
@@ -2731,7 +2731,7 @@ contains
 !$omp end do
 
                   @:TYPE_IS(kernel_do_simd_t)
-!$omp do simd schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
                   do i = 1, n
                      a(i) = a(i) + scale*b(i)
                   end do
@@ -2739,7 +2739,7 @@ contains
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
-!$omp do simd nontemporal(a,b) schedule(runtime)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b)
                      do i = 1, n
                         a(i) = a(i) + scale*b(i)
                      end do

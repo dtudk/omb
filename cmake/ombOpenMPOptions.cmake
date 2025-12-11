@@ -54,7 +54,7 @@ if( f_omp_partition )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PARTITION")
 endif()
 
-CHECK_START("* has masked construct (master deprecated since 5.1)")
+CHECK_START("* has masked construct (5.1)")
 set(source "
 use omp_lib
 !$omp parallel
@@ -65,6 +65,25 @@ print * , omp_get_num_threads()
 end")
 check_fortran_source_compiles("${source}" f_omp_masked SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_masked )
+
+CHECK_START("* has schedule simd modifier (4.5)")
+set(source "
+use omp_lib
+real :: a(10)
+integer :: i
+!$omp parallel
+!$omp do simd schedule(simd:runtime)
+do i = 1, 10
+   a(i) = 0.0
+end do
+!$omp end do simd
+!$omp end parallel
+end")
+check_fortran_source_compiles("${source}" f_omp_simd_schedule_modifier SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_simd_schedule_modifier )
+if( f_omp_simd_schedule_modifier )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_SIMD_SCHEDULE_MODIFIER")
+endif()
 
 CHECK_START("* has nontemporal simd clause (5.0)")
 set(source "
@@ -85,6 +104,7 @@ if( f_omp_simd_nontemporal )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_SIMD_NONTEMPORAL")
 endif()
 
+
 # In case we have nvfortran < 26, we won't allow masked
 # It merely states the *masked* construct as a warning, not a
 # compilation error.
@@ -101,7 +121,7 @@ else()
   list(APPEND OMB_FYPP_FLAGS -DOMB_OMP_MASKED="master")
 endif()
 
-CHECK_START("* has orphan construct")
+CHECK_START("* enables orphan construct")
 set(source "
 subroutine mysub(n, a)
 integer, intent(in) :: n
@@ -124,7 +144,7 @@ end")
 check_fortran_source_compiles("${source}" f_omp_orphan SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_orphan REQUIRED )
 
-CHECK_START("* has CPU loop construct")
+CHECK_START("* has CPU loop construct (5.0)")
 set(source "
 real :: a(100)
 integer :: i
@@ -141,7 +161,7 @@ check_fortran_source_compiles("${source}" f_omp_cpu_loop
   SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_cpu_loop REQUIRED )
 
-CHECK_START("* has taskloop construct")
+CHECK_START("* has taskloop construct (4.5)")
 set(source "
 real :: a(100)
 integer :: i
@@ -161,7 +181,7 @@ CHECK_PASS_FAIL( f_omp_taskloop )
 if( f_omp_taskloop )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_TASKLOOP")
 
-  CHECK_START("* has taskloop simd construct")
+  CHECK_START("* has taskloop simd construct (4.5)")
 set(source "
 real :: a(100)
 integer :: i

@@ -21,3 +21,9 @@
 #:if defined("OMB_REAL128")
    #:set REALS = REALS + ["real128"]
 #:endif
+
+#:if defined("OMB_OMP_SIMD_SCHEDULE_MODIFIER")
+   #:set SIMD_SCHEDULE = "simd:runtime"
+#:else
+   #:set SIMD_SCHEDULE = "runtime"
+#:endif
