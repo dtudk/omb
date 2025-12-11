@@ -41,9 +41,10 @@ module info_omp_m
    character(len=*), parameter :: FMT_SYS_ES = "('sys ',a,t40,':',256(tr1,es0.10))"
    character(len=*), parameter :: FMT_I = "('omp ',a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_DA = "('omp ',a,t40,':',tr1,f0.10,tr1,a)"
-   character(len=*), parameter :: FMT_T_DA = "('omp ','[',i0,']',tr1,a,t40,':',tr1,f0.10,tr1,a)"
+   character(len=*), parameter :: FMT_T_DA = "('omp ',a,tr1,'[thread=',i0,',place=',i0,']',t40,':',tr1,f0.10,tr1,a)"
    character(len=*), parameter :: FMT_L = "('omp ',a,t40,':',256(tr1,l0))"
    character(len=*), parameter :: FMT_A = "('omp ',a,t40,':',256(tr1,a))"
+   character(len=*), parameter :: FMT_ES = "('omp ',a,t40,':',256(tr1,es0.10))"
    character(len=*), parameter :: FMT_T_I = "('omp ','[',i0,']',tr1,a,t40,':',256(tr1,i0))"
    character(len=*), parameter :: FMT_T_IDS = "('omp ','[',i0,']',tr1,a,t40,':',tr1,256(i0,:,','))"
    character(len=*), parameter :: FMT_T_A = "('omp ','[',i0,']',tr1,a,t40,':',256(tr1,a))"
@@ -61,7 +62,6 @@ contains
 
    subroutine print_info_sys()
 
-      use omp_lib, only: omp_get_wtick
       use timing_m, only: timing_get_sys_rate
       use timing_m, only: timing_get_sys_tick
       use timing_m, only: timing_get_sys_max
@@ -83,11 +83,12 @@ contains
       write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_rate", timing_get_sys_rate()
       write (OUTPUT_UNIT, FMT_SYS_ES) "system_clock_rate [ns]", timing_get_sys_tick()*1e9
       write (OUTPUT_UNIT, FMT_SYS_I) "system_clock_max", timing_get_sys_max()
-      write (OUTPUT_UNIT, FMT_SYS_ES) "get_wtick [ns]", omp_get_wtick()*1e9
 
    end subroutine
 
    subroutine print_info_omp(info_env)
+      use omp_lib, only: omp_get_wtick
+
       type(info_env_t), intent(in) :: info_env
 
       integer(OMP_PROC_BIND_KIND) :: proc_bind
@@ -99,6 +100,7 @@ contains
       real(real64) :: wtick
 
       ! Generic information on the OpenMP environment
+      write (OUTPUT_UNIT, FMT_ES) "get_wtick [ns]", omp_get_wtick()*1.e9
 
 !$omp parallel default(private)
 !$omp single
@@ -123,13 +125,13 @@ contains
             !   OMP_NUM_THREADS=#cores OMP_PLACES=cores(#cores)
             i = omp_get_place_num()
             if (wtick < 1e-9_real64) then
-               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e12, "ps"
+               write (OUTPUT_UNIT, FMT_T_da) "wtick", io_thread, i, wtick*1e12, "ps"
             else if (wtick < 1e-6_real64) then
-               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e9, "ns"
+               write (OUTPUT_UNIT, FMT_T_da) "wtick", io_thread, i, wtick*1e9, "ns"
             else if (wtick < 1e-3_real64) then
-               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e6, "us"
+               write (OUTPUT_UNIT, FMT_T_da) "wtick", io_thread, i, wtick*1e6, "us"
             else
-               write (OUTPUT_UNIT, FMT_T_da) i, "wtick", wtick*1e3, "ms"
+               write (OUTPUT_UNIT, FMT_T_da) "wtick", io_thread, i, wtick*1e3, "ms"
             end if
 
          end if
