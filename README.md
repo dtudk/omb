@@ -168,18 +168,24 @@ OpenMP allows several ways to utilize parallelism.
 
 | Kernel | OpenMP construct |
 | ----- | ----- |
-| `do`                  | `!$omp parallel do` |
-| `do:simd`             | `!$omp parallel do simd` |
-| `manual`              | `!$omp parallel` |
-| `workshare`           | `!$omp parallel workshare` |
-| `loop`                | `!$omp parallel loop` |
-| `taskloop`            | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
-| `taskloop:simd`       | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop simd`</pre> |
-| `teams:manual`        | `!$omp teams` |
-| `teams:distribute`    | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
-| `teams:distribute:do` | <pre>`!$omp teams`<br>`!$omp distribute parallel do`</pre> |
-| `teams:parallel:do`   | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
-| `teams:parallel:loop` | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
+| `serial`                  |  |
+| `do`                      | `!$omp parallel do` |
+| `do:simd`                 | `!$omp parallel do simd` |
+| `do:simd+nontemporal`     | `!$omp parallel do simd nontemporal` |
+| `manual`                  | `!$omp parallel` |
+| `manual:simd`             | <pre>`!$omp parallel`<br>`!$omp simd`</pre> |
+| `manual:simd+nontemporal` | <pre>`!$omp parallel`<br>`!$omp simd nontemporal`</pre> |
+| `loop`                    | `!$omp parallel loop` |
+| `workshare`               | `!$omp parallel workshare` |
+| `taskloop`                | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop`</pre> |
+| `taskloop:simd`           | <pre>`!$omp parallel`<br>`!$omp single`<br>`!$omp taskloop simd`</pre> |
+| `teams:manual`            | `!$omp teams` |
+| `teams:distribute`        | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
+| `teams:distribute:do`     | <pre>`!$omp teams`<br>`!$omp distribute parallel do`</pre> |
+| `teams:distribute:manual` | <pre>`!$omp teams`<br>`!$omp distribute parallel`</pre> |
+| `teams:parallel:do`       | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
+| `teams:parallel:manual`   | <pre>`!$omp teams`<br>`!$omp parallel`</pre> |
+| `teams:parallel:loop`     | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
 
 The `teams` construct was mainly introduced in OpenMP to perform distributed
 computations on GPU's due to its multi-level parallelism. For those `teams`

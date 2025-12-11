@@ -940,6 +940,8 @@ contains
 
       character(len=*), parameter :: fmt_opt_a = "(t3,'--',a,t18,': ',a)"
       character(len=*), parameter :: fmt_oa = "(t18,'  ',a)"
+      character(len=*), parameter :: fmt_ka = "(t18,'   - ',a)"
+      character(len=*), parameter :: fmt_koa = "(t24,a)"
       character(len=*), parameter :: fmt_oafa = "(t18,'  ',a,tr1,f0.1,tr1,a)"
       character(len=*), parameter :: fmt_arg_a = "(t3,'  ',a,t18,': ',a)"
       character(len=*), parameter :: fmt_aa = "(t18,'  ',a)"
@@ -979,35 +981,36 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
-      write (OUTPUT_UNIT, fmt_oa) " - do -> use parallel do clause [default]"
-      write (OUTPUT_UNIT, fmt_oa) " - do:simd -> use parallel do simd clause"
+      write (OUTPUT_UNIT, fmt_ka) "do -> use parallel do clause [default]"
+      write (OUTPUT_UNIT, fmt_ka) "do:simd -> use parallel do simd clause"
       #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
-         write (OUTPUT_UNIT, fmt_oa) " - do:simd+nontemporal -> use parallel do simd nontemporal clause"
+         write (OUTPUT_UNIT, fmt_ka) "do:simd+nontemporal -> use parallel do simd nontemporal clause"
       #:endif
-      write (OUTPUT_UNIT, fmt_oa) " - manual -> use parallel clause, static manual split"
-      write (OUTPUT_UNIT, fmt_oa) " - manual:simd -> use parallel clause, static manual split with simd clause"
+      write (OUTPUT_UNIT, fmt_ka) "manual -> use parallel clause, static manual split"
+      write (OUTPUT_UNIT, fmt_ka) "manual:simd -> use parallel clause, static manual split with simd clause"
       #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
    write (OUTPUT_UNIT, fmt_oa) " - manual:simd+nontemporal -> use parallel clause, static manual split with simd nontemporal clause"
       #:endif
-      write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
-      write (OUTPUT_UNIT, fmt_oa) "   lhs-realloc is explicitly prohibited by a(:) = ..."
+      write (OUTPUT_UNIT, fmt_ka) "loop -> use the parallel loop workshare clause"
+      write (OUTPUT_UNIT, fmt_ka) "workshare -> use parallel workshare clause"
+      write (OUTPUT_UNIT, fmt_koa) "lhs-realloc is explicitly prohibited by a(:) = ..."
       #:if defined("OMB_OMP_TASKLOOP")
-         write (OUTPUT_UNIT, fmt_oa) " - taskloop[,num_tasks] -> use parallel taskloop clause"
-         write (OUTPUT_UNIT, fmt_oa) "   default num_tasks lets each thread get ~10 tasks or tasks of min size 8"
-         write (OUTPUT_UNIT, fmt_oa) " - taskloop:simd[,num_tasks] -> use parallel taskloop simd clause"
+         write (OUTPUT_UNIT, fmt_ka) "taskloop[,num_tasks] -> use parallel taskloop clause"
+         write (OUTPUT_UNIT, fmt_koa) "default num_tasks lets each thread get ~10 tasks or tasks of min size 8"
+         write (OUTPUT_UNIT, fmt_ka) "taskloop:simd[,num_tasks] -> use parallel taskloop simd clause"
       #:endif
-      write (OUTPUT_UNIT, fmt_oa) " - loop -> use the parallel loop workshare clause"
       #:if defined("OMB_OMP_TEAMS")
          #:if defined("OMB_OMP_TEAMS_PARALLEL")
-            write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:manual -> abuse the teams parallel workshare clause"
-            write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:do -> abuse the teams parallel do workshare clause"
-            write (OUTPUT_UNIT, fmt_oa) " - teams:parallel:loop-> abuse the teams parallel loop workshare clause"
+            write (OUTPUT_UNIT, fmt_ka) "teams:parallel:do -> abuse the teams parallel do workshare clause"
+            write (OUTPUT_UNIT, fmt_ka) "teams:parallel:manual -> abuse the teams parallel workshare clause"
+            write (OUTPUT_UNIT, fmt_ka) "teams:parallel:loop-> abuse the teams parallel loop workshare clause"
          #:endif
-         write (OUTPUT_UNIT, fmt_oa) " - teams:manual -> abuse the teams workshare clause"
+         write (OUTPUT_UNIT, fmt_ka) "teams:manual -> abuse the teams workshare clause"
          #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-            write (OUTPUT_UNIT, fmt_oa) " - teams:distribute -> abuse the teams distribute workshare clause"
-            write (OUTPUT_UNIT, fmt_oa) "   expect poor perf. due to bad teams distribution."
-            write (OUTPUT_UNIT, fmt_oa) " - teams:distribute:do -> abuse the teams distribute parallel do workshare clause"
+            write (OUTPUT_UNIT, fmt_ka) "teams:distribute -> abuse the teams distribute workshare clause"
+            write (OUTPUT_UNIT, fmt_koa) "expect poor perf. due to bad teams distribution."
+            write (OUTPUT_UNIT, fmt_ka) "teams:distribute:do -> abuse the teams distribute parallel do workshare clause"
+            write (OUTPUT_UNIT, fmt_ka) "teams:distribute:manual -> abuse the teams distribute parallel workshare clause"
          #:endif
       #:endif
       write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"
@@ -1019,18 +1022,18 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
       #:if "real16" in REALS
-         write (OUTPUT_UNIT, fmt_oa) " - 16|real16 -> 2-byte real"
+         write (OUTPUT_UNIT, fmt_ka) "16|real16 -> 2-byte real"
       #:endif
-      write (OUTPUT_UNIT, fmt_oa) " - 32|real32 -> 4-byte real"
-      write (OUTPUT_UNIT, fmt_oa) " - 64|real64 -> 8-byte real [default]"
+      write (OUTPUT_UNIT, fmt_ka) "32|real32 -> 4-byte real"
+      write (OUTPUT_UNIT, fmt_ka) "64|real64 -> 8-byte real [default]"
       #:if "real128" in REALS
-         write (OUTPUT_UNIT, fmt_oa) " - 128|real128 -> 16-byte real"
+         write (OUTPUT_UNIT, fmt_ka) "128|real128 -> 16-byte real"
       #:endif
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "first-touch", "how to initialize arrays"
-      write (OUTPUT_UNIT, fmt_oa) " - parallel -> initialize array in parallel [default]"
-      write (OUTPUT_UNIT, fmt_oa) " - master -> initialize array with master thread"
+      write (OUTPUT_UNIT, fmt_ka) "parallel -> initialize array in parallel [default]"
+      write (OUTPUT_UNIT, fmt_ka) "master -> initialize array with master thread"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "warmup", "how many warm-up iterations are done before timing"
