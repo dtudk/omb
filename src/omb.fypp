@@ -657,15 +657,15 @@ program main
       MB = results%info%MB()
       ! time the small memories.
       ! bump it up to more iterations for small memory footprints
-      if (MB <= 5._real64) then
-         if (.not. option_set_it) options%it = 100
-         if (.not. option_set_warmup) options%warmup_it = 5
+      if (MB*1024 <= 128._real64) then
+         if (.not. option_set_it) options%it = 1000
+         if (.not. option_set_warmup) options%warmup_it = 75
       else if (MB <= 0.5_real64) then
          if (.not. option_set_it) options%it = 500
          if (.not. option_set_warmup) options%warmup_it = 25
-      else if (MB*1024 <= 128._real64) then
-         if (.not. option_set_it) options%it = 1000
-         if (.not. option_set_warmup) options%warmup_it = 75
+      else if (MB <= 5._real64) then
+         if (.not. option_set_it) options%it = 100
+         if (.not. option_set_warmup) options%warmup_it = 5
       end if
    end block
 
