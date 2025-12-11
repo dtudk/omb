@@ -177,39 +177,49 @@ program main
 
             select case (arg)
             case ("serial")
-               allocate (option_kernel_serial_t::options%kernel)
+               allocate (kernel_serial_t::options%kernel)
             case ("manual")
-               allocate (option_kernel_manual_t::options%kernel)
+               allocate (kernel_manual_t::options%kernel)
+            case ("manual:simd")
+               allocate (kernel_manual_simd_t::options%kernel)
+               #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                  case ("manual:simd+nontemporal")
+                  allocate (kernel_manual_simd_nontemporal_t::options%kernel)
+               #:endif
             case ("do")
-               allocate (option_kernel_do_t::options%kernel)
+               allocate (kernel_do_t::options%kernel)
             case ("do:simd")
-               allocate (option_kernel_do_simd_t::options%kernel)
+               allocate (kernel_do_simd_t::options%kernel)
+               #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                  case ("do:simd+nontemporal")
+                  allocate (kernel_do_simd_nontemporal_t::options%kernel)
+               #:endif
             case ("workshare")
-               allocate (option_kernel_workshare_t::options%kernel)
+               allocate (kernel_workshare_t::options%kernel)
                #:if defined("OMB_OMP_TASKLOOP")
                   case ("taskloop")
-                  allocate (option_kernel_taskloop_t::options%kernel)
+                  allocate (kernel_taskloop_t::options%kernel)
                   case ("taskloop:simd")
-                  allocate (option_kernel_taskloop_simd_t::options%kernel)
+                  allocate (kernel_taskloop_simd_t::options%kernel)
                #:endif
             case ("loop")
-               allocate (option_kernel_loop_t::options%kernel)
+               allocate (kernel_loop_t::options%kernel)
                #:if defined("OMB_OMP_TEAMS")
                   case ("teams:manual")
-                  allocate (option_kernel_teams_manual_t::options%kernel)
+                  allocate (kernel_teams_manual_t::options%kernel)
                   #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
                      case ("teams:distribute")
-                     allocate (option_kernel_teams_distribute_t::options%kernel)
+                     allocate (kernel_teams_distribute_t::options%kernel)
                      case ("teams:distribute:do")
-                     allocate (option_kernel_teams_distribute_do_t::options%kernel)
+                     allocate (kernel_teams_distribute_do_t::options%kernel)
                   #:endif
                   #:if defined("OMB_OMP_TEAMS_PARALLEL")
                      case ("teams:parallel:manual")
-                     allocate (option_kernel_teams_parallel_manual_t::options%kernel)
+                     allocate (kernel_teams_parallel_manual_t::options%kernel)
                      case ("teams:parallel:do")
-                     allocate (option_kernel_teams_parallel_do_t::options%kernel)
+                     allocate (kernel_teams_parallel_do_t::options%kernel)
                      case ("teams:parallel:loop")
-                     allocate (option_kernel_teams_parallel_loop_t::options%kernel)
+                     allocate (kernel_teams_parallel_loop_t::options%kernel)
                   #:endif
                #:endif
             case default
@@ -219,7 +229,7 @@ program main
             end select
 
             select type (kernel => options%kernel)
-            class is (option_kernel_taskloop_t)
+            class is (kernel_taskloop_t)
                kernel%num_tasks = num_tasks
             end select
 
@@ -501,7 +511,7 @@ program main
 
    if (.not. associated(options%kernel)) then
       ! default to the DO kernel
-      allocate (option_kernel_do_t::options%kernel)
+      allocate (kernel_do_t::options%kernel)
    end if
 
    #:if defined('OMB_MPI')
@@ -662,7 +672,7 @@ program main
    ! we must specify the correct number of tasks so there is a limited
    ! overhead of the task scheduling.
    select type (kernel => options%kernel)
-   class is (option_kernel_taskloop_t)
+   class is (kernel_taskloop_t)
       if (kernel%num_tasks < 1) then
          ! Decide a *good* number of tasks.
          ! For large counts of elements we should be able
@@ -721,7 +731,7 @@ program main
          write (OUTPUT_UNIT, "(a)") trim(name)
       end block
       select type (kernel => options%kernel)
-      class is (option_kernel_taskloop_t)
+      class is (kernel_taskloop_t)
          write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
       end select
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
@@ -971,7 +981,14 @@ contains
       write (OUTPUT_UNIT, fmt_opt_a) "kernel", "how the OpenMP distribution is done"
       write (OUTPUT_UNIT, fmt_oa) " - do -> use parallel do clause [default]"
       write (OUTPUT_UNIT, fmt_oa) " - do:simd -> use parallel do simd clause"
+      #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+         write (OUTPUT_UNIT, fmt_oa) " - do:simd+nontemporal -> use parallel do simd nontemporal clause"
+      #:endif
       write (OUTPUT_UNIT, fmt_oa) " - manual -> use parallel clause, static manual split"
+      write (OUTPUT_UNIT, fmt_oa) " - manual:simd -> use parallel clause, static manual split with simd clause"
+      #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+   write (OUTPUT_UNIT, fmt_oa) " - manual:simd+nontemporal -> use parallel clause, static manual split with simd nontemporal clause"
+      #:endif
       write (OUTPUT_UNIT, fmt_oa) " - workshare -> use parallel workshare clause"
       write (OUTPUT_UNIT, fmt_oa) "   lhs-realloc is explicitly prohibited by a(:) = ..."
       #:if defined("OMB_OMP_TASKLOOP")

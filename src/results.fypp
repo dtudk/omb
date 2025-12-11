@@ -103,7 +103,7 @@ contains
    function bandwidth_gbs(this) result(bandwidth)
       class(results_t), intent(in) :: this
       real(real64) :: bandwidth
-      ! Convert from GMOP to bandwidth, by scaling each
+      ! Convert from GMOPS to bandwidth, by scaling each
       ! memory operation with the number of bytes and converting
       ! SI Giga to Binary Giga = 1000/1024
       bandwidth = this%info%element_bytes()*this%gmops()*(1000._real64/1024._real64)**3

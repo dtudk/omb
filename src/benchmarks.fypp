@@ -267,7 +267,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -279,7 +279,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1) &
 !$omp&  reduction(+:sum_a)
@@ -304,7 +304,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1) &
 !$omp&  reduction(+:sum_a)
@@ -328,7 +328,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -353,7 +353,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -377,7 +377,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -400,7 +400,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -435,32 +435,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      sum_a = sum_a + a(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     sum_a = sum_a + a(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a)
+                     do i = istart, iend
+                        sum_a = sum_a + a(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime) reduction(+:sum_a)
                   do i = 1, n
                      sum_a = sum_a + a(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime) reduction(+:sum_a)
                   do i = 1, n
                      sum_a = sum_a + a(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a) schedule(runtime) reduction(+:sum_a)
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   sum_a = sum(a(1:n))
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks) &
 !$omp&  reduction(+:sum_a)
@@ -470,7 +495,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks) &
 !$omp&  reduction(+:sum_a)
@@ -481,7 +506,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop reduction(+:sum_a)
                   do i = 1, n
                      sum_a = sum_a + a(i)
@@ -535,7 +560,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -546,7 +571,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -568,7 +593,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -590,7 +615,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -614,7 +639,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -636,7 +661,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -658,7 +683,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -693,32 +718,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = fill
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = fill
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a)
+                     do i = istart, iend
+                        a(i) = fill
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = fill
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = fill
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a) schedule(runtime)
+                     do i = 1, n
+                        a(i) = fill
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = fill
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -727,7 +777,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -737,7 +787,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = fill
@@ -790,7 +840,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -801,7 +851,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -823,7 +873,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -845,7 +895,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -869,7 +919,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -891,7 +941,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -913,7 +963,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -948,32 +998,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = b(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = b(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b)
+                     do i = istart, iend
+                        a(i) = b(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = b(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = b(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b) schedule(runtime)
+                     do i = 1, n
+                        a(i) = b(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = b(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -982,7 +1057,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -992,7 +1067,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = b(i)
@@ -1048,7 +1123,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -1059,7 +1134,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -1081,7 +1156,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1103,7 +1178,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1127,7 +1202,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1149,7 +1224,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1171,7 +1246,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1206,32 +1281,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = scale*b(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = scale*b(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b)
+                     do i = istart, iend
+                        a(i) = scale*b(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = scale*b(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = scale*b(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b) schedule(runtime)
+                     do i = 1, n
+                        a(i) = scale*b(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = scale*b(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -1240,7 +1340,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -1250,7 +1350,8 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
+
 !$omp loop
                   do i = 1, n
                      a(i) = scale*b(i)
@@ -1305,7 +1406,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -1316,7 +1417,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -1338,7 +1439,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1360,7 +1461,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1384,7 +1485,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1406,7 +1507,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1428,7 +1529,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1463,32 +1564,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = b(i) + c(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = b(i) + c(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b,c)
+                     do i = istart, iend
+                        a(i) = b(i) + c(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = b(i) + c(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = b(i) + c(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b,c) schedule(runtime)
+                     do i = 1, n
+                        a(i) = b(i) + c(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = b(1:n) + c(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -1497,7 +1623,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -1507,7 +1633,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = b(i) + c(i)
@@ -1565,7 +1691,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -1576,7 +1702,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -1598,7 +1724,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1620,7 +1746,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1644,7 +1770,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1666,7 +1792,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1688,7 +1814,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1723,32 +1849,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = b(i) + scale*c(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = b(i) + scale*c(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b,c)
+                     do i = istart, iend
+                        a(i) = b(i) + scale*c(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = b(i) + scale*c(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = b(i) + scale*c(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b,c) schedule(runtime)
+                     do i = 1, n
+                        a(i) = b(i) + scale*c(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = b(1:n) + scale*c(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -1757,7 +1908,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -1767,7 +1918,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = b(i) + scale*c(i)
@@ -1824,7 +1975,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -1835,7 +1986,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -1857,7 +2008,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1879,7 +2030,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -1903,7 +2054,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1925,7 +2076,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1947,7 +2098,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -1982,32 +2133,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = b(i) + c(i)*d(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = b(i) + c(i)*d(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b,c,d)
+                     do i = istart, iend
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = b(i) + c(i)*d(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = b(i) + c(i)*d(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b,c,d) schedule(runtime)
+                     do i = 1, n
+                        a(i) = b(i) + c(i)*d(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = b(1:n) + c(1:n)*d(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -2016,7 +2192,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -2026,7 +2202,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = b(i) + c(i)*d(i)
@@ -2085,7 +2261,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -2096,7 +2272,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -2118,7 +2294,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2140,7 +2316,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2164,7 +2340,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2186,7 +2362,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2208,7 +2384,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2243,32 +2419,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = b(i)*c(i) + d(i)*e(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = b(i)*c(i) + d(i)*e(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b,c,d,e)
+                     do i = istart, iend
+                        a(i) = b(i)*c(i) + d(i)*e(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = b(i)*c(i) + d(i)*e(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = b(i)*c(i) + d(i)*e(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b,c,d,e) schedule(runtime)
+                     do i = 1, n
+                        a(i) = b(i)*c(i) + d(i)*e(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = b(1:n)*c(1:n) + d(1:n)*e(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -2277,7 +2478,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -2287,7 +2488,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = b(i)*c(i) + d(i)*e(i)
@@ -2343,7 +2544,7 @@ contains
 
          select type (kernel => options%kernel)
 
-         type is (option_kernel_serial_t)
+         type is (kernel_serial_t)
 
             do it = 1, options%it
                call timing%start()
@@ -2354,7 +2555,7 @@ contains
             end do
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,istart,iend) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
                call manual_split(n, istart, iend, in_teams=.true.)
@@ -2376,7 +2577,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2398,7 +2599,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2422,7 +2623,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_manual_t)
+                  type is (kernel_teams_parallel_manual_t)
 !$omp teams private(it,i,istart,iend) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2444,7 +2645,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2466,7 +2667,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_parallel_loop_t)
+                  type is (kernel_teams_parallel_loop_t)
 !$omp teams private(it,i,team) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2501,32 +2702,57 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_manual_t)
+                  @:TYPE_IS(kernel_manual_t)
                   do i = istart, iend
                      a(i) = a(i) + scale*b(i)
                   end do
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_manual_simd_t)
+!$omp simd
+                  do i = istart, iend
+                     a(i) = a(i) + scale*b(i)
+                  end do
+!$omp end simd
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+!$omp simd nontemporal(a,b)
+                     do i = istart, iend
+                        a(i) = a(i) + scale*b(i)
+                     end do
+!$omp end simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
 !$omp do schedule(runtime)
                   do i = 1, n
                      a(i) = a(i) + scale*b(i)
                   end do
 !$omp end do
 
-                  @:TYPE_IS(option_kernel_do_simd_t)
+                  @:TYPE_IS(kernel_do_simd_t)
 !$omp do simd schedule(runtime)
                   do i = 1, n
                      a(i) = a(i) + scale*b(i)
                   end do
 !$omp end do simd
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+!$omp do simd nontemporal(a,b) schedule(runtime)
+                     do i = 1, n
+                        a(i) = a(i) + scale*b(i)
+                     end do
+!$omp end do simd
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
 !$omp workshare
                   a(1:n) = a(1:n) + scale*b(1:n)
 !$omp end workshare
 
                   #:if defined("OMB_OMP_TASKLOOP")
-                     @:TYPE_IS(option_kernel_taskloop_t)
+                     @:TYPE_IS(kernel_taskloop_t)
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -2535,7 +2761,7 @@ contains
 !$omp end taskloop
 !$omp end single
 
-                     @:TYPE_IS(option_kernel_taskloop_simd_t)
+                     @:TYPE_IS(kernel_taskloop_simd_t)
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                      do i = 1, n
@@ -2545,7 +2771,7 @@ contains
 !$omp end single
                   #:endif
 
-                  @:TYPE_IS(option_kernel_loop_t)
+                  @:TYPE_IS(kernel_loop_t)
 !$omp loop
                   do i = 1, n
                      a(i) = a(i) + scale*b(i)
@@ -2619,7 +2845,7 @@ contains
          select type (kernel => options%kernel)
 
             #:if defined("OMB_OMP_TEAMS")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,id) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2642,7 +2868,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team,teams,id) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2668,7 +2894,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team,teams,id) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2696,7 +2922,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team,id) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2734,7 +2960,7 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_do_t)
 
                   ! To traverse everything, we don't need an OMP loop
                   ! Each thread accesses its own space.
@@ -2742,7 +2968,7 @@ contains
                      a(id, i) = b(id, i) + scale*c(id, i)
                   end do
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(kernel_workshare_t)
 
                   a(id, :) = b(id, :) + scale*c(id, :)
 
@@ -2811,7 +3037,7 @@ contains
          select type (kernel => options%kernel)
 
             #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-               type is (option_kernel_teams_manual_t)
+               type is (kernel_teams_manual_t)
 !$omp teams private(it,i,team,id) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2834,7 +3060,7 @@ contains
 !$omp end teams
 
                #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                  type is (option_kernel_teams_distribute_t)
+                  type is (kernel_teams_distribute_t)
 !$omp teams private(it,i,team,teams,id) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2860,7 +3086,7 @@ contains
 
 !$omp end teams
 
-                  type is (option_kernel_teams_distribute_do_t)
+                  type is (kernel_teams_distribute_do_t)
 !$omp teams private(it,i,team,teams,id) &
 !$omp&  num_teams(options%num_threads) thread_limit(1)
 
@@ -2888,7 +3114,7 @@ contains
                #:endif
 
                #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                  type is (option_kernel_teams_parallel_do_t)
+                  type is (kernel_teams_parallel_do_t)
 !$omp teams private(it,i,team,id) &
 !$omp&  num_teams(1) thread_limit(options%num_threads)
 
@@ -2926,7 +3152,7 @@ contains
 
                select type (kernel => options%kernel)
 
-                  @:TYPE_IS(option_kernel_do_t)
+                  @:TYPE_IS(kernel_do_t)
 
                   ! To traverse everything, we don't need an OMP loop
                   ! Each thread accesses its own space.
@@ -2934,7 +3160,7 @@ contains
                      a(id, i) = b(id, i) + c(id, i)*d(id, i)
                   end do
 
-                  @:TYPE_IS(option_kernel_workshare_t)
+                  @:TYPE_IS(kernel_workshare_t)
 
                   a(id, :) = b(id, :) + c(id, :)*d(id, :)
 

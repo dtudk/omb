@@ -33,36 +33,48 @@ module options_m
       logical :: dryrun = .false.
 
       !< The kernel specification for the test runned.
-      class(option_kernel_t), pointer :: kernel => null()
+      class(kernel_t), pointer :: kernel => null()
 
    end type
 
    !< Inheritable class to signal which kernel we will be using
-   type, public :: option_kernel_t
+   type, public :: kernel_t
    contains
 
-      procedure, pass :: name => option_kernel_name
+      procedure, pass :: name => kernel_name
 
    end type
 
    !< Use no OpenMP clauses.
-   type, public, extends(option_kernel_t) :: option_kernel_serial_t
+   type, public, extends(kernel_t) :: kernel_serial_t
    end type
 
    !< Use the parallel construct, then manual static splitting.
-   type, public, extends(option_kernel_t) :: option_kernel_manual_t
+   type, public, extends(kernel_t) :: kernel_manual_t
+   end type
+
+   !< Use the parallel construct in manual simd construct.
+   type, public, extends(kernel_manual_t) :: kernel_manual_simd_t
+   end type
+
+   !< Use the parallel construct in manual simd + nontemporal construct.
+   type, public, extends(kernel_manual_simd_t) :: kernel_manual_simd_nontemporal_t
    end type
 
    !< Use the parallel do construct.
-   type, public, extends(option_kernel_t) :: option_kernel_do_t
+   type, public, extends(kernel_t) :: kernel_do_t
    end type
 
    !< Use the parallel do simd construct.
-   type, public, extends(option_kernel_t) :: option_kernel_do_simd_t
+   type, public, extends(kernel_do_t) :: kernel_do_simd_t
+   end type
+
+   !< Use the parallel do simd nontemporal construct.
+   type, public, extends(kernel_do_simd_t) :: kernel_do_simd_nontemporal_t
    end type
 
    !< Use the parallel workshare construct.
-   type, public, extends(option_kernel_t) :: option_kernel_workshare_t
+   type, public, extends(kernel_t) :: kernel_workshare_t
    end type
 
    !< Use the parallel taskloop construct.
@@ -70,7 +82,7 @@ module options_m
    !< The taskloop construct adds an implicit taskgroup around.
    !< We default to use this because it is required for reduction
    !< operations.
-   type, public, extends(option_kernel_t) :: option_kernel_taskloop_t
+   type, public, extends(kernel_t) :: kernel_taskloop_t
       integer(${OMB_INT_KIND}$) :: num_tasks = -1
    end type
 
@@ -79,15 +91,15 @@ module options_m
    !< The taskloop simd construct adds an implicit taskgroup around.
    !< We default to use this because it is required for reduction
    !< operations.
-   type, public, extends(option_kernel_taskloop_t) :: option_kernel_taskloop_simd_t
+   type, public, extends(kernel_taskloop_t) :: kernel_taskloop_simd_t
    end type
 
    !< Use the parallel loop construct.
-   type, public, extends(option_kernel_t) :: option_kernel_loop_t
+   type, public, extends(kernel_t) :: kernel_loop_t
    end type
 
    !< Global class for teams
-   type, public, extends(option_kernel_t) :: option_kernel_teams_t
+   type, public, extends(kernel_t) :: kernel_teams_t
    end type
 
    !< Use the teams construct and the initial team thread for parallelism.
@@ -100,7 +112,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_manual_t
+   type, public, extends(kernel_teams_t) :: kernel_teams_manual_t
    end type
 
    !< Use the teams distribute construct.
@@ -113,7 +125,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_distribute_t
+   type, public, extends(kernel_teams_t) :: kernel_teams_distribute_t
    end type
 
    !< Use the teams distribute parallel do construct.
@@ -126,7 +138,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_distribute_t) :: option_kernel_teams_distribute_do_t
+   type, public, extends(kernel_teams_distribute_t) :: kernel_teams_distribute_do_t
    end type
 
    !< Use the teams parallel construct.
@@ -137,7 +149,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_parallel_manual_t
+   type, public, extends(kernel_teams_t) :: kernel_teams_parallel_manual_t
    end type
 
    !< Use the teams parallel do construct.
@@ -148,7 +160,7 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_parallel_do_t
+   type, public, extends(kernel_teams_t) :: kernel_teams_parallel_do_t
    end type
 
    !< Use the teams parallel loop construct.
@@ -159,45 +171,51 @@ module options_m
    !<
    !< All teams constructs lack a synchronization technique
    !< because the barrier requires all threads in a team to participate.
-   type, public, extends(option_kernel_teams_t) :: option_kernel_teams_parallel_loop_t
+   type, public, extends(kernel_teams_t) :: kernel_teams_parallel_loop_t
    end type
 
 contains
 
-   subroutine option_kernel_name(this, name)
-      class(option_kernel_t), intent(in) :: this
+   subroutine kernel_name(this, name)
+      class(kernel_t), intent(in) :: this
       character(len=*), intent(out) :: name
 
       name = " "
 
       select type (this)
-      type is (option_kernel_serial_t)
+      type is (kernel_serial_t)
          name = "serial"
-      type is (option_kernel_manual_t)
+      type is (kernel_manual_t)
          name = "manual"
-      type is (option_kernel_do_t)
+      type is (kernel_manual_simd_t)
+         name = "manual:simd"
+      type is (kernel_manual_simd_nontemporal_t)
+         name = "manual:simd+nontemporal"
+      type is (kernel_do_t)
          name = "do"
-      type is (option_kernel_do_simd_t)
+      type is (kernel_do_simd_t)
          name = "do:simd"
-      type is (option_kernel_workshare_t)
+      type is (kernel_do_simd_nontemporal_t)
+         name = "do:simd+nontemporal"
+      type is (kernel_workshare_t)
          name = "workshare"
-      type is (option_kernel_taskloop_t)
+      type is (kernel_taskloop_t)
          name = "taskloop"
-      type is (option_kernel_taskloop_simd_t)
+      type is (kernel_taskloop_simd_t)
          name = "taskloop:simd"
-      type is (option_kernel_loop_t)
+      type is (kernel_loop_t)
          name = "loop"
-      type is (option_kernel_teams_manual_t)
+      type is (kernel_teams_manual_t)
          name = "teams:manual"
-      type is (option_kernel_teams_distribute_t)
+      type is (kernel_teams_distribute_t)
          name = "teams:distribute"
-      type is (option_kernel_teams_distribute_do_t)
+      type is (kernel_teams_distribute_do_t)
          name = "teams:distribute:do"
-      type is (option_kernel_teams_parallel_manual_t)
+      type is (kernel_teams_parallel_manual_t)
          name = "teams:parallel:manual"
-      type is (option_kernel_teams_parallel_do_t)
+      type is (kernel_teams_parallel_do_t)
          name = "teams:parallel:do"
-      type is (option_kernel_teams_parallel_loop_t)
+      type is (kernel_teams_parallel_loop_t)
          name = "teams:parallel:loop"
       class default
          name = "<unset>"

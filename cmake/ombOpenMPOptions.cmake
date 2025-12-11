@@ -66,6 +66,25 @@ end")
 check_fortran_source_compiles("${source}" f_omp_masked SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_masked )
 
+CHECK_START("* has nontemporal simd clause (5.0)")
+set(source "
+use omp_lib
+real :: a(10)
+integer :: i
+!$omp parallel
+!$omp do simd nontemporal(a)
+do i = 1, 10
+   a(i) = 0.0
+end do
+!$omp end do simd
+!$omp end parallel
+end")
+check_fortran_source_compiles("${source}" f_omp_simd_nontemporal SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_simd_nontemporal )
+if( f_omp_simd_nontemporal )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_SIMD_NONTEMPORAL")
+endif()
+
 # In case we have nvfortran < 26, we won't allow masked
 # It merely states the *masked* construct as a warning, not a
 # compilation error.
