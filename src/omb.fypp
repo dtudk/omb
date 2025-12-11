@@ -70,6 +70,7 @@ program main
    type(info_env_t) :: info_env
 
    logical :: option_set_it = .false.
+   logical :: option_set_warmup = .false.
 
    integer :: rank_mpi = 0
    #:if defined('OMB_MPI')
@@ -371,6 +372,7 @@ program main
 
          case ("-warmup")
 
+            option_set_warmup = .true.
             if (iarg >= nargs) then
                write (ERROR_UNIT, *) "Too few arguments, --warmup has no argument"
                stop 3
@@ -654,17 +656,16 @@ program main
       real(real64) :: MB
       MB = results%info%MB()
       ! time the small memories.
-      if (.not. option_set_it) then
-         ! bump it up to more iterations for small memory footprints
-         if (MB <= 5._real64) then
-            options%it = 100
-         end if
-         if (MB <= 0.5_real64) then
-            options%it = 500
-         end if
-         if (MB <= 0.125_real64) then
-            options%it = 1000
-         end if
+      ! bump it up to more iterations for small memory footprints
+      if (MB <= 5._real64) then
+         if (.not. option_set_it) options%it = 100
+         if (.not. option_set_warmup) options%warmup_it = 5
+      else if (MB <= 0.5_real64) then
+         if (.not. option_set_it) options%it = 500
+         if (.not. option_set_warmup) options%warmup_it = 25
+      else if (MB*1024 <= 128._real64) then
+         if (.not. option_set_it) options%it = 1000
+         if (.not. option_set_warmup) options%warmup_it = 75
       end if
    end block
 
@@ -1017,7 +1018,7 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
-      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<128kB, 500<0.5MB, 100<5MB."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<128kB, 500<0.5MB, 100<5MB, else 10."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
@@ -1038,7 +1039,7 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "warmup", "how many warm-up iterations are done before timing"
       write (OUTPUT_UNIT, fmt_oa) "A parallel do construct will be used, regardless of kernel."
-      write (OUTPUT_UNIT, fmt_oa) "Default is 1."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 75<128kB, 25<0.5MB, 5<5MB, else 1."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "padding", "(alias for offset)"
