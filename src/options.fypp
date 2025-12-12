@@ -251,6 +251,8 @@ contains
             case ("do:simd+nontemporal")
             allocate (kernel_do_simd_nontemporal_t::this)
          #:endif
+      case ("loop")
+         allocate (kernel_loop_t::this)
       case ("workshare")
          allocate (kernel_workshare_t::this)
          #:if defined("OMB_OMP_TASKLOOP")
@@ -259,8 +261,6 @@ contains
             case ("taskloop:simd")
             allocate (kernel_taskloop_simd_t::this)
          #:endif
-      case ("loop")
-         allocate (kernel_loop_t::this)
          #:if defined("OMB_OMP_TEAMS")
             case ("teams:manual")
             allocate (kernel_teams_manual_t::this)
