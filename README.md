@@ -112,6 +112,7 @@ Here are the most commonly used options for `omb`:
 | `-it <count>` | Take the minimum timing out of this many iterations. |
 | `-dtype 32\|64\|128` | Use the data-type with this many bits per element. |
 | `-kernel <name>` | Specify the OpenMP construct used in the benchmark. <br> Please see `omb --help` for available kernels. |
+| `-method <name>` | Specify the benchmark to run, <br> see `omb --help` for available methods. |
 
 Besides the optional flags, the benchmark includes a large number of
 different methods. The default method to run the benchmark is the
@@ -143,7 +144,7 @@ As an example lets invoke `omb` with
 - use 2 threads, and the two cores, as specified by the runtime.
 
 ```shell
-$> OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb triad -kernel do:simd -it 10 -n 20MB
+$> OMP_NUM_THREADS=2 OMP_PLACES=cores(2) omb -m triad -kernel do:simd -it 10 -n 20MB
  triad do:simd 1 8   1.99999924E+01   5.18938001E-04   6.45935400E-04   1.15988655E-08   8.63896001E-04  37.63694799E+00   3.36769710E+00
 ```
 The columns are described in this small box, `omb --help` will also show this information.

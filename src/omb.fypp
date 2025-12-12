@@ -172,67 +172,23 @@ program main
                arg = left
             end block
 
-            if (associated(options%kernel)) then
-               deallocate (options%kernel)
-            end if
-
-            select case (arg)
-            case ("serial")
-               allocate (kernel_serial_t::options%kernel)
-            case ("manual")
-               allocate (kernel_manual_t::options%kernel)
-            case ("manual:simd")
-               allocate (kernel_manual_simd_t::options%kernel)
-               #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
-                  case ("manual:simd+nontemporal")
-                  allocate (kernel_manual_simd_nontemporal_t::options%kernel)
-               #:endif
-            case ("do")
-               allocate (kernel_do_t::options%kernel)
-            case ("do:simd")
-               allocate (kernel_do_simd_t::options%kernel)
-               #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
-                  case ("do:simd+nontemporal")
-                  allocate (kernel_do_simd_nontemporal_t::options%kernel)
-               #:endif
-            case ("workshare")
-               allocate (kernel_workshare_t::options%kernel)
-               #:if defined("OMB_OMP_TASKLOOP")
-                  case ("taskloop")
-                  allocate (kernel_taskloop_t::options%kernel)
-                  case ("taskloop:simd")
-                  allocate (kernel_taskloop_simd_t::options%kernel)
-               #:endif
-            case ("loop")
-               allocate (kernel_loop_t::options%kernel)
-               #:if defined("OMB_OMP_TEAMS")
-                  case ("teams:manual")
-                  allocate (kernel_teams_manual_t::options%kernel)
-                  #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
-                     case ("teams:distribute")
-                     allocate (kernel_teams_distribute_t::options%kernel)
-                     case ("teams:distribute:do")
-                     allocate (kernel_teams_distribute_do_t::options%kernel)
-                  #:endif
-                  #:if defined("OMB_OMP_TEAMS_PARALLEL")
-                     case ("teams:parallel:manual")
-                     allocate (kernel_teams_parallel_manual_t::options%kernel)
-                     case ("teams:parallel:do")
-                     allocate (kernel_teams_parallel_do_t::options%kernel)
-                     case ("teams:parallel:loop")
-                     allocate (kernel_teams_parallel_loop_t::options%kernel)
-                  #:endif
-               #:endif
-            case default
+            ! Allocate the kernel based on the argument
+            call kernel_alloc(options%kernel, arg)
+            if (.not. associated(options%kernel)) then
                write (ERROR_UNIT, *) "The requested kernel does not exist?"
                write (ERROR_UNIT, *) " -kernel ", trim(arg)
                stop 4
-            end select
+            end if
 
             select type (kernel => options%kernel)
-            class is (kernel_taskloop_t)
+            class is (kernel_taskloop_t) ! allows all sub-classes
                kernel%num_tasks = num_tasks
             end select
+
+         case ("-method", "-m")
+
+            ! Don't do anything as the method will be correctly
+            ! grabbed by the rest of the select case
 
          case ("fill")
             method = METHOD_FILL
@@ -716,28 +672,27 @@ program main
             write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [TB]", all_mb/1024**2
          end select
       end block
-      write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [b]", results%info%bits
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", nint(results%info%element_bytes(), int32)
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
+      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it
+      write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
       write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", results%info%narrays
       write (OUTPUT_UNIT, debug_fmt_i) "memory_store", results%info%stores
       write (OUTPUT_UNIT, debug_fmt_i) "memory_read", results%info%reads
       write (OUTPUT_UNIT, debug_fmt_i) "flop", results%info%flop
-      write (OUTPUT_UNIT, debug_fmt_a, advance="no") "kernel"
       block
-         character(len=32) :: name
+         character(len=64) :: name
          call options%kernel%name(name)
-         write (OUTPUT_UNIT, "(a)") trim(name)
+         write (OUTPUT_UNIT, debug_fmt_a) "kernel", trim(name)
       end block
       select type (kernel => options%kernel)
       class is (kernel_taskloop_t)
          write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
       end select
+      write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
-      write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
-      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it
       write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
       block
          integer(int64) :: all_ibytes
@@ -795,7 +750,7 @@ program main
 
          write (OUTPUT_UNIT, "(tr1,a,t12)", advance="no") trim(method_str)
          block
-            character(len=32) :: name
+            character(len=64) :: name
             call options%kernel%name(name)
             write (OUTPUT_UNIT, "(tr1,a,t24)", advance="no") trim(name)
          end block
@@ -956,24 +911,23 @@ contains
       write (OUTPUT_UNIT, fmt_nl) "STREAM like OpenMP benchmark program written in fortran."
       write (OUTPUT_UNIT, fmt_nl)
 
-      write (OUTPUT_UNIT, fmt_nl) "Methods:"
-      write (OUTPUT_UNIT, fmt_arg_a) "triad", "a = b + c*2  [default]"
-      write (OUTPUT_UNIT, fmt_arg_a) "tetrad", "a = b + c*d"
-      write (OUTPUT_UNIT, fmt_arg_a) "pentad", "a = b*c + d*e"
-      write (OUTPUT_UNIT, fmt_arg_a) "axpy", "a = a + b*2"
-      write (OUTPUT_UNIT, fmt_arg_a) "scale", "a = b*2"
-      write (OUTPUT_UNIT, fmt_arg_a) "add", "a = b + c"
-      write (OUTPUT_UNIT, fmt_arg_a) "fill", "a = 2."
-      write (OUTPUT_UNIT, fmt_arg_a) "sum", "res = sum(a)"
-      write (OUTPUT_UNIT, fmt_arg_a) "copy", "a = b"
-      write (OUTPUT_UNIT, fmt_arg_a) "fs:triad", "a = b + c*2"
-      write (OUTPUT_UNIT, fmt_aa) "false-sharing access."
-      write (OUTPUT_UNIT, fmt_arg_a) "fs:tetrad", "a = b + c*d"
-      write (OUTPUT_UNIT, fmt_aa) "false-sharing access."
-
-      write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "Options:"
 
+      write (OUTPUT_UNIT, fmt_opt_a) "method/m", "which benchmark to run"
+      write (OUTPUT_UNIT, fmt_ka) "triad -> a = b + c*2  [default]"
+      write (OUTPUT_UNIT, fmt_ka) "tetrad -> a = b + c*d"
+      write (OUTPUT_UNIT, fmt_ka) "pentad -> a = b*c + d*e"
+      write (OUTPUT_UNIT, fmt_ka) "axpy -> a = a + b*2"
+      write (OUTPUT_UNIT, fmt_ka) "scale -> a = b*2"
+      write (OUTPUT_UNIT, fmt_ka) "add -> a = b + c"
+      write (OUTPUT_UNIT, fmt_ka) "fill -> a = 2."
+      write (OUTPUT_UNIT, fmt_ka) "sum -> res = sum(a)"
+      write (OUTPUT_UNIT, fmt_ka) "copy -> a = b"
+      write (OUTPUT_UNIT, fmt_ka) "fs:triad -> a = b + c*2"
+      write (OUTPUT_UNIT, fmt_koa) "false-sharing access."
+      write (OUTPUT_UNIT, fmt_ka) "fs:tetrad -> a = b + c*d"
+      write (OUTPUT_UNIT, fmt_koa) "false-sharing access."
+      write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
       write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory."
       write (OUTPUT_UNIT, fmt_oa) "Understands kB, MB, GB and TB."
@@ -1064,13 +1018,13 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "Examples:"
       write (OUTPUT_UNIT, fmt_nl)
-      write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -n 2MB axpy"
+      write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -n 2MB -m axpy"
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "runs the axpy code, using 3 arrays totalling 2MB of memory."
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "  "//trim(arg)//" -first-touch master " &
-         &//"-kernel taskloop,32 -dtype 32 -n 2GB triad -it 200 -warmup 2"
+         &//"-kernel taskloop,32 -dtype 32 -n 2GB -m triad -it 200 -warmup 2"
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "runs the triad method using the taskloop kernel, " &
          &//"num_tasks of 32, 4-byte reals, 3 arrays of total 2GB,"
