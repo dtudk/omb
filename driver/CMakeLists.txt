@@ -10,3 +10,14 @@ install(
     GROUP_READ GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
 )
+
+install(
+  PROGRAMS omb-analyzer.py
+  TYPE "BIN"
+  # Omit the .py suffix
+  RENAME omb-analyzer
+  PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+)
