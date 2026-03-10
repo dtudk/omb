@@ -272,8 +272,9 @@ function get_env {
 
 # Create a nested loop-construct based on the OMP_PLACES.
 # Currently, only the comma-separated one is acceptable.
-tmpdomains=$(mktemp)
-tmpplaces=$(mktemp)
+tmp_base=$(mktemp omb-driver.XXXXXXXX)
+tmpdomains=$tmp_base.domains
+tmpplaces=$tmp_base.places
 
 # Ask OpenMP how the places are located.
 # Then, we will collect them through scripts.
