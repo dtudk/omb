@@ -459,8 +459,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-                     sum_a = 0._${real}$
-!$omp simd
+!$omp simd reduction(+:sum_a)
                      do i = istart, iend
                         sum_a = sum_a + a(i)
                      end do
@@ -470,8 +469,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-                        sum_a = 0._${real}$
-!$omp simd nontemporal(a)
+!$omp simd reduction(+:sum_a) nontemporal(a)
                         do i = istart, iend
                            sum_a = sum_a + a(i)
                         end do

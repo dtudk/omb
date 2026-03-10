@@ -40,7 +40,7 @@ contains
 
       ! Initialize the variables for determining the timings
       call system_clock(count, count_rate, count_max)
-      rcount_rate = real(count_rate, real64)
+      rcount_rate = 1._real64/real(count_rate, real64)
 
    end subroutine
 
@@ -51,7 +51,7 @@ contains
 
    function timing_get_sys_tick() result(rate)
       real(real64) :: rate
-      rate = 1._real64/rcount_rate
+      rate = rcount_rate
    end function
 
    function timing_get_sys_max() result(ma)
@@ -82,7 +82,7 @@ contains
 
       #:if defined("OMB_TIMING_SYSTEM_CLOCK")
          call system_clock(count=t1)
-         timing%time = (t1 - timing%t0)/rcount_rate
+         timing%time = (t1 - timing%t0)*rcount_rate
       #:else
          timing%time = omp_get_wtime() - timing%t0
       #:endif

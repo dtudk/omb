@@ -69,6 +69,20 @@ program main
 
    type(info_env_t) :: info_env
 
+   ! Define some default boundaries
+   real(real64), parameter :: options_mem_boundaires(5) = [ &
+                              0.0625_real64, &
+                              1._real64, &
+                              5._real64, &
+                              10._real64, &
+                              50._real64]
+   integer, parameter :: options_warmup(5) = [ &
+                         1000, &
+                         100, &
+                         10, &
+                         1, &
+                         1]
+
    logical :: option_set_it = .false.
    logical :: option_set_it_per_timing = .false.
    logical :: option_set_warmup = .false.
@@ -320,7 +334,7 @@ program main
             select case (arg)
             case ("parallel")
                options%first_touch = .true.
-            case ("master")
+            case ("master", "main", "single")
                options%first_touch = .false.
             case default
                write (ERROR_UNIT, *) "-first-touch argument is not one of [parallel,master]"
@@ -376,7 +390,7 @@ program main
             call read_and_check_next_arg(iarg, arg)
 
             read (arg, *) options%it_per_timing
-            if (options%it < 1) then
+            if (options%it_per_timing < 1) then
                write (ERROR_UNIT, *) "The number of iterations must be larger than 0!"
                stop 4
             end if
@@ -625,143 +639,20 @@ program main
       end if
    end block
 
-   ! For very small arrays, we should do more iterations to correctly
-   ! So depends on whether the option has been set
-   block
-      real(real64) :: MB
-      MB = results%info%MB()
-      ! time the small memories.
-      ! bump it up to more iterations for small memory footprints
-      if (MB*1024 <= 128._real64) then
-         if (.not. option_set_it) options%it = 100000
-         if (.not. option_set_it_per_timing) options%it_per_timing = 10000
-         if (.not. option_set_warmup) options%warmup_it = 100
-      else if (MB <= 0.5_real64) then
-         if (.not. option_set_it) options%it = 10000
-         if (.not. option_set_it_per_timing) options%it_per_timing = 1000
-         if (.not. option_set_warmup) options%warmup_it = 50
-      else if (MB <= 4._real64) then
-         if (.not. option_set_it) options%it = 1000
-         if (.not. option_set_it_per_timing) options%it_per_timing = 100
-         if (.not. option_set_warmup) options%warmup_it = 5
-      else if (MB <= 32._real64) then
-         if (.not. option_set_it) options%it = 100
-         if (.not. option_set_it_per_timing) options%it_per_timing = 10
-         if (.not. option_set_warmup) options%warmup_it = 2
-      else
-         if (.not. option_set_it) options%it = 10
-         if (.not. option_set_it_per_timing) options%it_per_timing = 1
-         if (.not. option_set_warmup) options%warmup_it = 1
-      end if
-   end block
-
-   ! Correct the timings for timings
-   ! This will run ~ options%it in total, but average across it_per_timing
-   ! timings
-   if (mod(options%it, options%it_per_timing) > options%it_per_timing/2) then
-      options%it = options%it/options%it_per_timing + 1
-   else
-      options%it = options%it/options%it_per_timing
-   end if
-
-   if (options%it < 1) then
-      write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Number of iterations will be <= 0, please increase --it"
-      stop 3
-   end if
-
    ! In case the kernel is the taskloop, and the num_tasks is < 1, then
    ! we must specify the correct number of tasks so there is a limited
    ! overhead of the task scheduling.
    select type (kernel => options%kernel)
    class is (kernel_taskloop_t)
-      if (kernel%num_tasks < 1) then
-         ! Decide a *good* number of tasks.
-         ! For large counts of elements we should be able
-         ! to split into ~10 tasks per thread.
-         ! For very few elements, this might be too much.
-         ! Hence we decide that a stride of 8 elements is a *good*
-         ! choice. So task size should be ~8 for optimal perf.
-         ! Therefore we take the minimum:
-         !    min(elements/8, 10 *num_threads)
-         if (results%info%N(1)/8 < 10*options%num_threads) then
-            kernel%num_tasks = max(1, results%info%N(1)/8)
-         else
-            kernel%num_tasks = 10*options%num_threads
-         end if
-      end if
+      call kernel%init(results%info%N(1), options%num_threads)
    end select
 
    ! At this point we should have:
    ! n == elements along the distributed array dimension (<= big_n)
-
-   if (options%debug) then
-      write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", &
-         nint(results%info%MB()/bytes2MB, int64)
-      write (OUTPUT_UNIT, debug_fmt_i) "elements_count", results%info%elements()
-      block
-         integer(int64) :: all_ibytes
-         real(real64) :: all_mb
-         all_mb = results%info%MB()
-         all_ibytes = nint(all_mb/bytes2MB, int64)
-         select case (all_ibytes)
-         case (:1024_int64 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [B]", all_mb*1024**2
-         case (1024_int64**1:1024_int64**2 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [kB]", all_mb*1024
-         case (1024_int64**2:1024_int64**3 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", all_mb
-         case (1024_int64**3:1024_int64**4 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [GB]", all_mb/1024
-         case (1024_int64**4:)
-            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [TB]", all_mb/1024**2
-         end select
-      end block
-      write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [b]", results%info%bits
-      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", nint(results%info%element_bytes(), int32)
-      write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
-      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it*options%it_per_timing
-      write (OUTPUT_UNIT, debug_fmt_i) "timing_iterations", options%it
-      write (OUTPUT_UNIT, debug_fmt_i) "iterations_per_timing", options%it_per_timing
-      write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
-      write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", results%info%narrays
-      write (OUTPUT_UNIT, debug_fmt_i) "memory_store", results%info%stores
-      write (OUTPUT_UNIT, debug_fmt_i) "memory_read", results%info%reads
-      write (OUTPUT_UNIT, debug_fmt_i) "flop", results%info%flop
-      block
-         character(len=64) :: name
-         call options%kernel%name(name)
-         write (OUTPUT_UNIT, debug_fmt_a) "kernel", trim(name)
-      end block
-      select type (kernel => options%kernel)
-      class is (kernel_taskloop_t)
-         write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
-      end select
-      write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
-      write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
-      write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
-      block
-         integer(int64) :: all_ibytes
-         real(real64) :: all_rbytes
-         all_rbytes = options%offset*results%info%element_bytes()* &
-                      results%info%narrays*results%info%N(2)
-         all_ibytes = nint(all_rbytes, int64)
-         select case (all_ibytes)
-         case (:1024_int64 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [B]", all_rbytes
-         case (1024_int64**1:1024_int64**2 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [kB]", all_rbytes/1024
-         case (1024_int64**2:1024_int64**3 - 1)
-            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [MB]", all_rbytes/1024**2
-         case (1024_int64**3:)
-            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [GB]", all_rbytes/1024**3
-         end select
-      end block
-   end if
-
    ! OpenMP information
    if (info_env%show) then
 
+      call print_debug()
       #:if defined('OMB_MPI')
          call show_info_mpi()
       #:else
@@ -770,12 +661,94 @@ program main
 
    else if (.not. options%dryrun) then ! only run in this case
 
-      if (options%test) then
+      if (.not. options%test) then
+         ! For very small arrays, we should do more iterations to correctly
+         ! capture minute timings.
+         ! In the following we'll try
+         ! So depends on whether the option has been set
+         block
+            integer :: ib, nb, n_halved
+            type(results_t) :: small
+            integer :: old_it, old_warmup_it
+
+            if (.not. option_set_it_per_timing) then
+               option_set_it_per_timing = .true.
+
+               ! Create a smaller one
+               small%info = results%info
+               ! We do not want to create timings for GB's of arrays
+               ! Instead, we reduce the arrays to <10MB, and then estimate
+               ! that the timings scales linearly... I know, bad, but
+               ! easier than trying to find defaults that scales to all
+               ! different archs.
+               n_halved = 0
+               do while (small%info%MB() > 10._real64)
+                  small%info%N(1) = small%info%N(1)/2
+                  n_halved = n_halved + 1
+               end do
+
+               ! For arrays smaller than 20 MB, we do a single off timing
+               ! time the small memories.
+               ! bump it up to more iterations for small memory footprints
+               old_it = options%it
+               old_warmup_it = options%warmup_it
+               options%it = 1
+               options%warmup_it = 1
+               options%it_per_timing = 1
+               call small%allocate(1)
+               call benchmark(small%info%N(1), options, small)
+
+               ! Restore the old timings
+               options%it = old_it
+               options%warmup_it = old_warmup_it
+
+               ! the aimed timing should be 100 ms per timing cycle
+               old_it = ceiling(100.e-3_real64/(small%times(1)*2**n_halved))
+               options%it_per_timing = max(1, old_it)
+
+               call small%deallocate()
+            end if
+
+            nb = size(options_mem_boundaires)
+            do ib = 1, nb
+               if (results%info%MB() <= options_mem_boundaires(ib) .or. ib == nb) then
+                  if (.not. option_set_warmup) &
+                     options%warmup_it = options_warmup(ib)
+
+                  ! Exit so we don't check the later ones!
+                  exit
+               end if
+            end do
+
+         end block
+
+         ! Forcefully update so we always do at least 2 iterations
+         if (options%it < options%it_per_timing*2) then
+            options%it = options%it_per_timing*2
+         end if
+
+         ! Correct the timings for timings
+         ! This will run ~ options%it in total, but average across it_per_timing
+         ! timings
+         if (mod(options%it, options%it_per_timing) > options%it_per_timing/2) then
+            options%it = options%it/options%it_per_timing + 1
+         else
+            options%it = options%it/options%it_per_timing
+         end if
+
+         if (options%it < 1) then
+            write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Number of iterations will be <= 0, please increase --it"
+            stop 3
+         end if
+
+      else
          ! Ensure that the test output is consistent
          ! i.e. only 1 run for all methods!
          options%it = 1
          options%it_per_timing = 1
       end if
+
+      call print_debug()
 
       ! Allocate the timings
       call results%allocate(options%it)
@@ -936,6 +909,75 @@ contains
 
    end function lcase
 
+   subroutine print_debug()
+
+      if (.not. options%debug) return
+
+      write (OUTPUT_UNIT, debug_fmt_i) "used_bytes [B]", &
+         nint(results%info%MB()/bytes2MB, int64)
+      write (OUTPUT_UNIT, debug_fmt_i) "elements_count", results%info%elements()
+      block
+         integer(int64) :: all_ibytes
+         real(real64) :: all_mb
+         all_mb = results%info%MB()
+         all_ibytes = nint(all_mb/bytes2MB, int64)
+         select case (all_ibytes)
+         case (:1024_int64 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [B]", all_mb*1024**2
+         case (1024_int64**1:1024_int64**2 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [kB]", all_mb*1024
+         case (1024_int64**2:1024_int64**3 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [MB]", all_mb
+         case (1024_int64**3:1024_int64**4 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [GB]", all_mb/1024
+         case (1024_int64**4:)
+            write (OUTPUT_UNIT, debug_fmt_e) "alloc_memory [TB]", all_mb/1024**2
+         end select
+      end block
+      write (OUTPUT_UNIT, debug_fmt_i) "num_threads", options%num_threads
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [b]", results%info%bits
+      write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", nint(results%info%element_bytes(), int32)
+      write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
+      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it*options%it_per_timing
+      write (OUTPUT_UNIT, debug_fmt_i) "timing_iterations", options%it
+      write (OUTPUT_UNIT, debug_fmt_i) "iterations_per_timing", options%it_per_timing
+      write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
+      write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", results%info%narrays
+      write (OUTPUT_UNIT, debug_fmt_i) "memory_store", results%info%stores
+      write (OUTPUT_UNIT, debug_fmt_i) "memory_read", results%info%reads
+      write (OUTPUT_UNIT, debug_fmt_i) "flop", results%info%flop
+      block
+         character(len=64) :: name
+         call options%kernel%name(name)
+         write (OUTPUT_UNIT, debug_fmt_a) "kernel", trim(name)
+      end block
+      select type (kernel => options%kernel)
+      class is (kernel_taskloop_t)
+         write (OUTPUT_UNIT, debug_fmt_i) "taskloop_num_tasks", kernel%num_tasks
+      end select
+      write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
+      write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
+      write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
+      block
+         integer(int64) :: all_ibytes
+         real(real64) :: all_rbytes
+         all_rbytes = options%offset*results%info%element_bytes()* &
+                      results%info%narrays*results%info%N(2)
+         all_ibytes = nint(all_rbytes, int64)
+         select case (all_ibytes)
+         case (:1024_int64 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [B]", all_rbytes
+         case (1024_int64**1:1024_int64**2 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [kB]", all_rbytes/1024
+         case (1024_int64**2:1024_int64**3 - 1)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [MB]", all_rbytes/1024**2
+         case (1024_int64**3:)
+            write (OUTPUT_UNIT, debug_fmt_e) "offset_memory [GB]", all_rbytes/1024**3
+         end select
+      end block
+
+   end subroutine
+
    subroutine print_help()
 
       character(len=512) :: arg
@@ -1023,9 +1065,9 @@ contains
       write (OUTPUT_UNIT, fmt_oa) "      The internal iterations will be it/it-per-timing such that"
       write (OUTPUT_UNIT, fmt_oa) "        it*it-per-timing is as close to the requested value as possible."
       write (OUTPUT_UNIT, fmt_oa) "NOTE: The reported iterations for --debug is the total number of iterations."
-      write (OUTPUT_UNIT, fmt_oa) "Default is 20000<128kB, 2000<0.5MB, 1000<4MB, 50<32MB else 20."
+      write (OUTPUT_UNIT, fmt_oa) "The default is 2 times the default of it-per-timing."
       write (OUTPUT_UNIT, fmt_opt_a) "it-per-timing", "how many iterations are done per timing"
-      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<128kB, 100<0.5MB, 50<4MB, 10<32MB else 5."
+      write (OUTPUT_UNIT, fmt_oa) "Default is X iterations per timing such that the timing is ~100 ms."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
@@ -1046,7 +1088,7 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "warmup", "how many warm-up iterations are done before timing"
       write (OUTPUT_UNIT, fmt_oa) "A parallel do construct will be used, regardless of kernel."
-      write (OUTPUT_UNIT, fmt_oa) "Default is 100<128kB, 50<0.5MB, 5<4MB, 2<32MB else 1."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<64kB, 100<1MB, 10<5MB else 1."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "padding", "(alias for offset)"
