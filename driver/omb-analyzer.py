@@ -2,21 +2,24 @@
 
 # Sample script to run analysis of output data from the code.
 
-from dataclasses import dataclass, field
 import logging
-from textwrap import dedent
 import typing as T
 from collections.abc import Sequence
+from dataclasses import dataclass, field
+from enum import Enum, IntEnum
 from functools import reduce, singledispatch
 from itertools import combinations, permutations
 from pathlib import Path
-from typing import Any
+from textwrap import dedent
+from typing import Any, Literal
 
 import click
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pyparsing as pp
 import xarray as xr
+from pyparsing.core import Suppress
 from xarray.core.dataset import Dataset
 
 # Check that xarray works!
@@ -241,6 +244,28 @@ class OMBAccessor:
             ret_ds.coords[place] = ret_ds.coords[place].astype(np.str_)
 
         return ret_ds
+
+    def drop_sel(self, coord, value):
+        """Reduce the object to a subset based on the coordinates equal to the value"""
+        ds: xr.Dataset = self._obj
+        values = ds.coords[coord].values
+        if isinstance(value, slice):
+            start = value.start
+            stop = value.stop
+            if value.step != None:
+                raise NotImplementedError("a defined step is not available")
+            if start is None:
+                idx = np.logical_not(values < stop).nonzero()[0]
+            elif stop is None:
+                idx = np.logical_not(start <= values).nonzero()[0]
+            else:
+                idx = np.logical_not(
+                    np.logical_and(start <= values, values < stop)
+                ).nonzero()[0]
+
+        else:
+            idx = np.logical_not(ds.coords[coord].values == value).nonzero()[0]
+        return ds.isel(benchmark=idx)
 
     def sel(self, coord, value):
         """Reduce the object to a subset based on the coordinates equal to the value"""
@@ -606,7 +631,7 @@ def get_places(dx: XRData) -> list:
     sorted_places : the sorting algorithm once the unique places have been created
     """
     # Get the places, and split them.
-    place_names = get_place_names(dx)
+    place_names = get_place_names(dx, force=True)
 
     # Collect the unique names
     places = set()
@@ -693,9 +718,8 @@ def _pprint(obj):
 
 # Ensure our context has the obj as a dictionary
 @dataclass
-class ExperimentSelector:
+class ExperimentStack:
     experiments: list[XRData] = field(default_factory=list)
-    options: dict = field(default_factory=dict)
 
     def __len__(self) -> int:
         return len(self.experiments)
@@ -717,9 +741,190 @@ class ExperimentSelector:
         return self.experiments[-1]
 
 
+class CacheLevel(IntEnum):
+    """Enum representing cache levels"""
+
+    L1 = 1
+    L2 = 2
+    L3 = 3
+    L4 = 4
+
+
+class CacheType(Enum):
+    """Enum representing cache types"""
+
+    DATA = "data"
+    INSTRUCTION = "instruction"
+    UNIFIED = "unified"
+
+
+@dataclass
+class CPUCacheInfo:
+    """
+    A class to store CPU cache information.
+
+    Attributes:
+        level: Cache level (L1, L2, L3, L4)
+        cache_type: Type of cache (data, instruction, or unified)
+        size_kb: Cache size in kilobytes
+        all_size_kb: Full cache size in kilobytes
+        line_size: Cache line size in bytes (typically 64)
+        associativity: Cache associativity (e.g., 8-way, 16-way)
+        shared_cores: Number of CPU cores sharing this cache
+        latency_cycles: Access latency in CPU cycles
+        write_policy: Write policy (e.g., "write-back", "write-through")
+        replacement_policy: Replacement policy (e.g., "LRU", "pseudo-LRU")
+    """
+
+    level: CacheLevel
+    cache_type: CacheType
+    size_kb: float
+    shared_cores: int
+    line_size: int = 64
+    associativity: int = 8
+    all_size_kb: float | None = None
+
+    def __post_init__(self):
+        """Validate cache information after initialization"""
+        if self.size_kb <= 0:
+            raise ValueError("Cache size must be positive")
+        if self.shared_cores <= 0:
+            raise ValueError("Number of shared cores must be positive")
+        if self.line_size <= 0:
+            raise ValueError("Cache line size must be positive")
+        if self.all_size_kb is None:
+            self.all_size_kb = self.shared_cores * self.size_kb
+
+    @property
+    def size_mb(self) -> float:
+        """Return cache size in megabytes"""
+        return self.size_kb / 1024
+
+    @property
+    def size_bytes(self) -> int:
+        """Return cache size in bytes"""
+        return self.size_kb * 1024
+
+    def __str__(self) -> str:
+        """Human-readable representation"""
+        return (
+            f"{self.level.name} {self.cache_type.value} cache: "
+            f"{self.size_kb}KB, {self.associativity}-way, "
+            f"shared by {self.shared_cores} core(s)"
+        )
+
+    def __gt__(self, other):
+        return self.level > other.level
+
+    def __lt__(self, other):
+        return self.level < other.level
+
+    def __eq__(self, other):
+        return self.level == other.level
+
+
+def parse_lscpu_c(text):
+    """Parses the `lscpu -C` output in a consistent manner."""
+    columns = None
+    caches = []
+    column_idx = {}
+    for line in text.splitlines():
+        fields = line.split()
+        if not fields:
+            continue
+
+        if line.startswith("NAME"):
+            columns = fields
+            column_idx = dict((col, i) for i, col in enumerate(columns))
+            continue
+
+        # We are ready to parse!
+        level = fields[column_idx["LEVEL"]]
+        one_size = parse_size(fields[column_idx["ONE-SIZE"]])
+        all_size = parse_size(fields[column_idx["ALL-SIZE"]])
+        shared_cores = int(round(all_size / one_size))
+        associativity = int(fields[column_idx["WAYS"]])
+        type = fields[column_idx["TYPE"]]
+        level = fields[column_idx["LEVEL"]]
+        line_size = int(fields[column_idx["COHERENCY-SIZE"]])
+        caches.append(
+            CPUCacheInfo(
+                CacheLevel["L" + level],
+                cache_type=CacheType[type.upper()],
+                size_kb=one_size,
+                all_size_kb=all_size,
+                line_size=line_size,
+                associativity=associativity,
+                shared_cores=shared_cores,
+            )
+        )
+    return caches
+
+
+def parse_size(
+    size: str, default: Literal["B", "KB", "MB", "GB", "TB"] | None = None
+) -> float:
+    """Parse a size K|M|G into kB"""
+
+    # Create the float word
+    p_int = pp.Word(pp.nums)
+    p_float = pp.Combine(p_int + "." + pp.Optional(p_int))
+
+    number = pp.Or([p_int, p_float]).add_parse_action(lambda toks: float(toks[0]))
+
+    if default is None:
+        default = "none"
+    default = default.upper()
+
+    def suppress_suffixes(*suffixes):
+        suffixes = [pp.Suppress(pp.CaselessLiteral(suffix)) for suffix in suffixes]
+        match = pp.MatchFirst(suffixes)
+        if suffixes[0] == default:
+            return pp.Optional(match)
+        return match
+
+    b = number.copy().add_parse_action(lambda toks: toks[0] / 1024) + suppress_suffixes(
+        "B"
+    )
+    kb = number.copy().add_parse_action(lambda toks: toks[0]) + suppress_suffixes(
+        "KB", "K"
+    )
+    mb = number.copy().add_parse_action(
+        lambda toks: toks[0] * 1024
+    ) + suppress_suffixes("MB", "M")
+    gb = number.copy().add_parse_action(
+        lambda toks: toks[0] * 1024**2
+    ) + suppress_suffixes("GB", "G")
+    tb = number.copy().add_parse_action(
+        lambda toks: toks[0] * 1024**3
+    ) + suppress_suffixes("TB", "T")
+
+    return (mb | gb | tb | kb | b)[1].parse_string(size)[0]
+
+
+@dataclass
+class CPUInfo:
+    cores: int = 1
+    threads: int = 1
+    caches: CPUCacheInfo | None = None
+    sockets: int = 1
+
+
+@dataclass
+class ExperimentContext:
+    stack: ExperimentStack = field(default_factory=ExperimentStack)
+    progress: Any = None
+    cpuinfo: Any = None
+    debug: bool = False
+
+    def create_progressbar(self, *args, **kwargs):
+        """Creates a context progress bar for tracking details."""
+        self.progress = click.progressbar(*args, **kwargs)
+
+
 # Define basic stuff
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
-pass_exps = click.make_pass_decorator(ExperimentSelector, ensure=True)
+pass_exps = click.make_pass_decorator(ExperimentContext, ensure=True)
 arg_experiment = click.argument(
     "experiment",
     type=click.Path(exists=True),
@@ -735,9 +940,10 @@ arg_experiment = click.argument(
 @debug_option
 @arg_experiment
 @pass_exps
-def cli(exps: ExperimentSelector, debug, experiment):
+def cli(exps: ExperimentContext, debug: bool, experiment):
     """Initial formulation of the CLI used for the analyzation."""
-    exps.push(experiment)
+    exps.stack.push(experiment)
+    exps.debug = debug
     if debug:
         _pprint(experiment)
 
@@ -746,50 +952,72 @@ def cli(exps: ExperimentSelector, debug, experiment):
 @debug_option
 @arg_experiment
 @pass_exps
-def push_experiment(exps: ExperimentSelector, debug, experiment):
+def push_experiment(exps: ExperimentContext, debug: bool, experiment):
     """Add a new experiment to the stack to analyze"""
-    exps.push(experiment)
+    debug = debug or exps.debug
+    exps.stack.push(experiment)
     if debug:
+        _pprint("pushing experiment to stack:")
         _pprint(experiment)
 
 
 @cli.command("pop")
+@debug_option
 @pass_exps
-def pop_experiment(exps: ExperimentSelector):
+def pop_experiment(exps: ExperimentContext, debug: bool):
     """Removes the latest experiment from the stack"""
-    exps.pop()
+    debug = debug or exps.debug
+    if debug:
+        _pprint("popping experiment from stack...")
+    exps.stack.pop()
 
 
 @cli.command("merge")
 @debug_option
 @arg_experiment
 @pass_exps
-def merge_experiment(exps: ExperimentSelector, debug, experiment):
+def merge_experiment(exps: ExperimentContext, debug: bool, experiment):
     """Merge more experiments together"""
-    old_experiment = exps.pop()
+    debug = debug or exps.debug
+
+    old_experiment = exps.stack.pop()
     experiment = xr.concat([old_experiment, experiment])
     if debug:
+        _pprint("merge_experiment:")
         _pprint(experiment)
-    exps.append(experiment)
+    exps.stack.push(experiment)
 
 
 @cli.command("select")
+@debug_option
 @click.argument("select", type=str)
 @pass_exps
-def select_experiment(exps: ExperimentSelector, select: str):
+def select_experiment(exps: ExperimentContext, debug: bool, select: str):
     """Reduce the data-array by selecting a certain value from a coordinate."""
+    debug = debug or exps.debug
+
     # Get latest experiment
-    ds = exps.experiment
+    ds = exps.stack.experiment
 
     try:
         name_coord, value = select.split("=", maxsplit=1)
+        if debug:
+            _pprint(f"select_experiment: {select} -> {name_coord} = {value}")
         # extract coord
         coord = ds.coords[name_coord]
     except ValueError:
         name_coord = select
+        if debug:
+            _pprint(f"select_experiment: {select} -> {name_coord}")
         value = None
 
     def conv(coord, value):
+        try:
+            # try and see if the value is a size
+            # To MB, parse_size defaults to kB
+            value = parse_size(value) / 1024
+        except pp.ParseException:
+            pass
         try:
             return coord.dtype.type(value)
         except TypeError:
@@ -807,16 +1035,68 @@ def select_experiment(exps: ExperimentSelector, select: str):
         r_min, r_max = value.split(":")
         r_min = conv(coord, r_min)
         r_max = conv(coord, r_max)
-        ds = ds.omb.sel(name_coord, slice(r_min, r_max))
+        sl = slice(r_min, r_max)
+        ds = ds.omb.sel(name_coord, sl)
+        if debug:
+            _pprint(f"select_experiment: {value} -> {sl!s}")
 
     else:
         value = conv(coord, value)
         ds = ds.groupby(name_coord)[value]
+        if debug:
+            _pprint(f"select_experiment: {name_coord}={value!s}")
 
-    exps.push(ds)
+    exps.stack.push(ds)
+
+
+@cli.command("drop")
+@debug_option
+@click.argument("drop", type=str)
+@pass_exps
+def drop_experiment(exps: ExperimentContext, debug: bool, drop: str):
+    """Reduce the data-array by removing a certain value from a coordinate."""
+    debug = debug or exps.debug
+
+    # Get latest experiment
+    ds = exps.stack.experiment
+
+    try:
+        name_coord, value = drop.split("=", maxsplit=1)
+        # extract coord
+        coord = ds.coords[name_coord]
+    except ValueError:
+        name_coord = drop
+        value = None
+
+    def conv(coord, value):
+        try:
+            return coord.dtype.type(value)
+        except TypeError:
+            pass  # likely not a numpy dtype, so we assume it's a string
+        except ValueError:
+            return None
+        return value
+
+    if value is None:
+        # variable extraction
+        ds = ds.drop_vars(name_coord)
+
+    elif ":" in value:
+        # We are doing a ranged selection
+        r_min, r_max = value.split(":")
+        r_min = conv(coord, r_min)
+        r_max = conv(coord, r_max)
+        ds = ds.omb.drop_sel(name_coord, slice(r_min, r_max))
+
+    else:
+        value = conv(coord, value)
+        ds = ds.omb.drop_sel(name_coord, value)
+
+    exps.stack.push(ds)
 
 
 @cli.command("domain")
+@debug_option
 @click.argument("domains", type=str)
 @click.option("--debug", is_flag=True, default=False)
 @click.option(
@@ -828,13 +1108,15 @@ def select_experiment(exps: ExperimentSelector, select: str):
 )
 @pass_exps
 def domain_experiment(
-    exps: ExperimentSelector, domains: str, reduce_func: str, debug: bool
+    exps: ExperimentContext, debug: bool, domains: str, reduce_func: str
 ):
     """Combine several places into separate *domains*."""
-    import pyparsing as pp
+    debug = debug or exps.debug
+    if debug:
+        _pprint("domain_experiment: {domains}")
 
     # Get latest experiment
-    ds = exps.experiment
+    ds = exps.stack.experiment
     reduce_func = {"avg": "mean", "average": "mean"}.get(reduce_func, reduce_func)
 
     pint = pp.Word(pp.nums).add_parse_action(lambda toks: int(toks[0]))
@@ -848,7 +1130,7 @@ def domain_experiment(
         return pp.Or([pp.Group(expr) for expr in exprs])
 
     delim: str = ","
-    max_res = np.array(ds.attrs["places"], dtype=np.int32).max()
+    max_res = len(ds.attrs["places"])
     cur_res = -1
 
     def res_i(toks):
@@ -880,7 +1162,7 @@ def domain_experiment(
 
     def res_Ci(toks):
         nonlocal cur_res
-        return lr(cur_res + 1, toks[0], 1)
+        return lr(cur_res + 1, cur_res + 1 + toks[0], 1)
 
     def res_CCi(toks):
         nonlocal cur_res, max_res
@@ -918,18 +1200,16 @@ def domain_experiment(
 
     grammar = pp.DelimitedList(p_interval | res_interval)
 
-    def has_keys(result, *keys):
-        for key in keys:
-            if key not in result:
-                return False
-        return True
-
     place_domains = []
 
     def extract_domain(result):
+        if debug:
+            _pprint(f"extract_domain: {result}")
         return reduce(lambda a, b: a + list(b), result, [])
 
     for result in grammar.parse_string(domains, parse_all=True):
+        if debug:
+            _pprint(f"domain_result: {result}")
         if isinstance(result[0], pp.ParseResults):
             if not isinstance(result[0][0], pp.ParseResults):
                 # a direct subset
@@ -952,23 +1232,29 @@ def domain_experiment(
 
                 for dist in range(num_places):
                     place_domains.append(domain + dist * stride)
+                    max_res = max(max_res, place_domains[-1].max())
+            max_res = max(max_res, place_domains[-1].max())
         else:
             place_domains.append(list(result))
 
     def add_domain(ds, domains):
         """Add domains as new coords."""
         add_coords = {}
-        domains = [domain.astype(np.str_) for domain in domains]
-        for place in ds.omb.place_names():
+        domains = [np.asarray(domain).astype(np.str_) for domain in domains]
+        for place in ds.omb.place_names(force=True):
+            if debug:
+                _pprint(f"domain_place: {place}")
             place_id = place.split("_")[1]
-            place_coord = ds.coords[place]
-            domain_coord = place_coord.copy().astype(np.str_)
+            # For places where there are multiple locations (e.g. 0,1)
+            place_coord = ds.coords[place].astype(np.str_).str.split("split", ",")
+            # Copy it so we can re-create a new domain specification.
+            domain_coord = ds.coords[place].copy().astype(np.str_)
             domain_coord.name = f"domain_{place_id}"
-            # clean the actual place
+            # clean the actual place, we'll fill it later.
             domain_coord[:] = ""
             for i, domain in enumerate(domains):
-                # print(f"{i = } {domain = }")
-                idx = place_coord.isin(domain)
+                # check along the split and reduce along split dimension
+                idx = place_coord.isin(domain).any(dim="split")
                 domain_coord[idx] = domain_coord[idx].str.cat(" ", str(i))
             add_coords[domain_coord.name] = domain_coord.str.lstrip()
 
@@ -1004,28 +1290,35 @@ def domain_experiment(
         )
 
     # Finally, we need to remove all na along the variables
-    exps.push(ds.dropna("benchmark", how="all"))
+    exps.stack.push(ds.dropna("benchmark", how="all"))
 
 
 @cli.command("groupby")
+@debug_option
 @click.argument("groupby", type=str)
 @pass_exps
-def groupby_experiment(exps: ExperimentSelector, groupby: str):
+def groupby_experiment(exps: ExperimentContext, debug: bool, groupby: str):
     """Create a groupby object that will be used for subsequent details."""
+    debug = debug or exps.debug
 
-    # Get latest experiment
-    ds = exps.experiment
+    groupby = groupby.split(",")
+    if debug:
+        _pprint(f"groupby_experiment: {groupby!s}")
 
-    ds = ds.groupby(groupby.split(","))
-    exps.push(ds)
+    # Get latest experiment and group it
+    ds = exps.stack.experiment
+    print(ds)
+    ds = ds.groupby(groupby)
+
+    exps.stack.push(ds)
 
 
 @cli.command()
 @pass_exps
-def symmetrize(exps):
+def symmetrize(exps: ExperimentContext):
     """Symmetrizes placement data"""
-    ds: xr.Dataset = exps.experiment.omb.fill_symmetric()
-    exps.push(ds)
+    ds: xr.Dataset = exps.stack.experiment.omb.fill_symmetric()
+    exps.stack.push(ds)
 
 
 @cli.result_callback()
@@ -1038,6 +1331,7 @@ def call_show_if_applicable(plots, *arguments, **kwargs):
     show = False
     if not all([p is None for p in plots]):
         show = True
+
     if "plt.show()" in plots:
         show = False
     if show:
@@ -1055,16 +1349,16 @@ def show():
     return "plt.show()"
 
 
-def info(exps, coord, variable):
+def info(exps: ExperimentContext, coord, variable):
     """Shows information for the current experiment (after any grouping etc.)"""
-    ds: XRData | XRGroup = exps.experiment
+    ds: XRData | XRGroup = exps.stack.experiment
 
     if isinstance(ds, XRGroup):
         for value, grp in ds:
             _pprint(f"groupers = {[g.group.name for g in ds.groupers]}")
-            exps.push(grp)
+            exps.stack.push(grp)
             info(exps, coord, variable)
-            exps.pop()
+            exps.stack.pop()
             _pprint("\n")
         return
 
@@ -1088,9 +1382,47 @@ def info(exps, coord, variable):
 @click.option("-c", "--coord", type=str, multiple=True)
 @click.option("-v", "--variable", type=str, multiple=True)
 @pass_exps
-def info_command(exps, coord, variable):
+def info_command(exps: ExperimentContext, coord: str, variable: str):
     """Shows information for the current experiment (after any grouping etc.)"""
     info(exps, coord, variable)
+
+
+plot_save = click.option(
+    "-s",
+    "--save",
+    type=str,
+    default=None,
+    help=dedent(
+        """Store the images in a output file using 'plt.savefig`.
+
+                         Use {group} to input the currently grabbed group values in the
+                         filename."""
+    ),
+)
+
+
+def save_fig(fig, filename):
+    """Save `plot` as the filename `filename`"""
+    if Path(filename).suffix not in ".png .svg .pdf":
+        filename = filename + ".png"
+    fig.savefig(filename)
+
+
+@dataclass
+class OptionDataArrayHasCoords:
+    options: list[str] = field(default_factory=list)
+
+    def get_default(self, ds) -> str:
+        """Determine which of the options are the required ones"""
+        if isinstance(ds, XRData):
+            for option in self.options:
+                if option in ds.coords:
+                    return option
+        else:
+            idx = next(iter(ds.groups.keys()))
+            ds = ds[idx]
+            return self.get_default(ds)
+        raise ValueError("Could not find a suitable key")
 
 
 def common_plot_options(*options, **arguments):
@@ -1210,18 +1542,18 @@ def imshow(da, x, y, data, col, row, xscale, yscale):
 
 
 @cli.command("imshow")
-@debug_option
 @common_plot_options(
     "--row",
     "--col",
     "--xscale",
     "--yscale",
-    __x="place_0",
-    __y="place_1",
+    __x="not-found",
+    __y="not-found",
     __data="bandwidth_gbs",
 )
+@plot_save
 @pass_exps
-def imshow_command(exps, debug, x, y, data, xscale, yscale, row, col):
+def imshow_command(exps, x, y, data, xscale, yscale, row, col, save):
     """Create a faceted imshow
 
     Advanced plotting functionality for plotting row/col data.
@@ -1229,15 +1561,22 @@ def imshow_command(exps, debug, x, y, data, xscale, yscale, row, col):
     """
 
     # get latest experiment in stack
-    ds: XRData | XRGroup = exps.experiment
+    ds: XRData | XRGroup = exps.stack.experiment
+
+    x = OptionDataArrayHasCoords([x, "place_0", "domain_0"])
+    x = x.get_default(ds)
+    y = OptionDataArrayHasCoords([y, "place_1", "domain_1"])
+    y = y.get_default(ds)
 
     # Gather all coords that are requested.
     all_axis_coords = [x, y, row, col]
     all_axis_coords = list(filter(lambda coord: coord, all_axis_coords))
+    if exps.debug:
+        _pprint(f"all_axis_coords {all_axis_coords!s}")
 
     def _plot(ds):
         da = _prepare_data(ds, data, all_axis_coords)
-        if debug:
+        if exps.debug:
             _pprint(da)
         return imshow(da, x, y, data, col, row, xscale, yscale)
 
@@ -1249,10 +1588,14 @@ def imshow_command(exps, debug, x, y, data, xscale, yscale, row, col):
         for value, grp in ds:
             p = _plot(grp)
             p.fig.suptitle(f"{name_data.description} = {value}")
+            if save:
+                save_fig(p.fig, save.format(group=value))
             plots.append(p)
 
     else:
         p = _plot(ds)
+        if save:
+            save_fig(p.fig, save.format(group=""))
         plots.append(p)
     return plots
 
@@ -1284,18 +1627,19 @@ def line(da, x, y, col, row, xscale, yscale, hue):
 @cli.command("line")
 @debug_option
 @common_plot_options(
-    "--row", "--col", "--xscale", "--yscale", "--hue", __x="size", y="bandwidth_gbs"
+    "--row", "--col", "--xscale", "--yscale", "--hue", __x="size", __y="bandwidth_gbs"
 )
 @pass_exps
-def line_command(exps, debug, x, y, xscale, yscale, row, col, hue):
+def line_command(exps, debug: bool, x, y, xscale, yscale, row, col, hue):
     """Create a faceted line plot
 
     Advanced plotting functionality for plotting row/col data.
     It respects the `groupby` command and will create a plot *per group*.
     """
+    debug = debug or exps.debug
 
     # get latest experiment in stack
-    ds: XRData | XRGroup = exps.experiment
+    ds: XRData | XRGroup = exps.stack.experiment
 
     # Gather all coords that are requested.
     all_axis_coords = [x, row, col, hue]
@@ -1304,13 +1648,18 @@ def line_command(exps, debug, x, y, xscale, yscale, row, col, hue):
     def _plot(ds):
         da = _prepare_data(ds, y, all_axis_coords)
         if debug:
+            _pprint("line_command:")
             _pprint(da)
         return line(da, x, y, col, row, xscale, yscale, hue)
 
     plots = []
     if isinstance(ds, XRGroup):
         name = ds.groupers[0].group.name
-        name_data = OMBAccessor.get_coord(name)
+        try:
+            name_data = OMBAccessor.get_coord(name)
+        except ValueError:
+            # We have to create a fake one
+            name_data = OMBAccessor.Coord(name, name, name)
 
         for value, grp in ds:
             p = _plot(grp)
