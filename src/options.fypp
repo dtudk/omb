@@ -13,7 +13,9 @@ module options_m
    type, public :: options_t
 
       !< Number of iterations that are timed
-      integer :: it = 10
+      integer :: it = 5
+      !< Number of iterations per timing
+      integer :: it_per_timing = 2
       !< Number of iterations that are *not* timed
       integer :: warmup_it = 1
       !< Whether the arrays are using a parallel first-touch, otherwise serial

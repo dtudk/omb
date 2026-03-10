@@ -70,6 +70,7 @@ program main
    type(info_env_t) :: info_env
 
    logical :: option_set_it = .false.
+   logical :: option_set_it_per_timing = .false.
    logical :: option_set_warmup = .false.
 
    integer :: rank_mpi = 0
@@ -362,6 +363,24 @@ program main
                stop 4
             end if
 
+         case ("-it-per-timing")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, --it-per-timing has no argument"
+               stop 3
+            end if
+
+            option_set_it_per_timing = .true.
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            read (arg, *) options%it_per_timing
+            if (options%it < 1) then
+               write (ERROR_UNIT, *) "The number of iterations must be larger than 0!"
+               stop 4
+            end if
+
          case ("-n", "-s")
 
             if (iarg >= nargs) then
@@ -614,16 +633,41 @@ program main
       ! time the small memories.
       ! bump it up to more iterations for small memory footprints
       if (MB*1024 <= 128._real64) then
-         if (.not. option_set_it) options%it = 1000
-         if (.not. option_set_warmup) options%warmup_it = 75
+         if (.not. option_set_it) options%it = 100000
+         if (.not. option_set_it_per_timing) options%it_per_timing = 10000
+         if (.not. option_set_warmup) options%warmup_it = 100
       else if (MB <= 0.5_real64) then
-         if (.not. option_set_it) options%it = 500
-         if (.not. option_set_warmup) options%warmup_it = 25
-      else if (MB <= 5._real64) then
-         if (.not. option_set_it) options%it = 100
+         if (.not. option_set_it) options%it = 10000
+         if (.not. option_set_it_per_timing) options%it_per_timing = 1000
+         if (.not. option_set_warmup) options%warmup_it = 50
+      else if (MB <= 4._real64) then
+         if (.not. option_set_it) options%it = 1000
+         if (.not. option_set_it_per_timing) options%it_per_timing = 100
          if (.not. option_set_warmup) options%warmup_it = 5
+      else if (MB <= 32._real64) then
+         if (.not. option_set_it) options%it = 100
+         if (.not. option_set_it_per_timing) options%it_per_timing = 10
+         if (.not. option_set_warmup) options%warmup_it = 2
+      else
+         if (.not. option_set_it) options%it = 10
+         if (.not. option_set_it_per_timing) options%it_per_timing = 1
+         if (.not. option_set_warmup) options%warmup_it = 1
       end if
    end block
+
+   ! Correct the timings for timings
+   ! This will run ~ options%it in total, but average across it_per_timing
+   ! timings
+   if (mod(options%it, options%it_per_timing) > options%it_per_timing/2) then
+      options%it = options%it/options%it_per_timing + 1
+   else
+      options%it = options%it/options%it_per_timing
+   end if
+
+   if (options%it < 1) then
+      write (ERROR_UNIT, "(a,tr1,i0,tr1,a)") "Number of iterations will be <= 0, please increase --it"
+      stop 3
+   end if
 
    ! In case the kernel is the taskloop, and the num_tasks is < 1, then
    ! we must specify the correct number of tasks so there is a limited
@@ -676,7 +720,9 @@ program main
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [b]", results%info%bits
       write (OUTPUT_UNIT, debug_fmt_i) "dtype_size [B]", nint(results%info%element_bytes(), int32)
       write (OUTPUT_UNIT, debug_fmt_a) "method", trim(method_str)
-      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it
+      write (OUTPUT_UNIT, debug_fmt_i) "iterations", options%it*options%it_per_timing
+      write (OUTPUT_UNIT, debug_fmt_i) "timing_iterations", options%it
+      write (OUTPUT_UNIT, debug_fmt_i) "iterations_per_timing", options%it_per_timing
       write (OUTPUT_UNIT, debug_fmt_i) "warmup_iterations", options%warmup_it
       write (OUTPUT_UNIT, debug_fmt_i) "num_arrays", results%info%narrays
       write (OUTPUT_UNIT, debug_fmt_i) "memory_store", results%info%stores
@@ -728,6 +774,7 @@ program main
          ! Ensure that the test output is consistent
          ! i.e. only 1 run for all methods!
          options%it = 1
+         options%it_per_timing = 1
       end if
 
       ! Allocate the timings
@@ -972,7 +1019,13 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "it", "how many iterations are done with timing"
-      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<128kB, 500<0.5MB, 100<5MB, else 10."
+      write (OUTPUT_UNIT, fmt_oa) "NOTE: The total iterations will be as close to this value as possible."
+      write (OUTPUT_UNIT, fmt_oa) "      The internal iterations will be it/it-per-timing such that"
+      write (OUTPUT_UNIT, fmt_oa) "        it*it-per-timing is as close to the requested value as possible."
+      write (OUTPUT_UNIT, fmt_oa) "NOTE: The reported iterations for --debug is the total number of iterations."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 20000<128kB, 2000<0.5MB, 1000<4MB, 50<32MB else 20."
+      write (OUTPUT_UNIT, fmt_opt_a) "it-per-timing", "how many iterations are done per timing"
+      write (OUTPUT_UNIT, fmt_oa) "Default is 1000<128kB, 100<0.5MB, 50<4MB, 10<32MB else 5."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"
@@ -993,7 +1046,7 @@ contains
 
       write (OUTPUT_UNIT, fmt_opt_a) "warmup", "how many warm-up iterations are done before timing"
       write (OUTPUT_UNIT, fmt_oa) "A parallel do construct will be used, regardless of kernel."
-      write (OUTPUT_UNIT, fmt_oa) "Default is 75<128kB, 25<0.5MB, 5<5MB, else 1."
+      write (OUTPUT_UNIT, fmt_oa) "Default is 100<128kB, 50<0.5MB, 5<4MB, 2<32MB else 1."
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "padding", "(alias for offset)"
@@ -1034,6 +1087,10 @@ contains
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl) "Notes:"
       write (OUTPUT_UNIT, fmt_nl) "If OMP_SCHEDULE is unset, it will default to OMP_SCHEDULE=static,0"
+      write (OUTPUT_UNIT, fmt_nl) "Generally you want to choose --it and --it-per-timing"
+      write (OUTPUT_UNIT, fmt_nl) "such that the timings reported TIMES it-per-timing is ~1e-3 s."
+      write (OUTPUT_UNIT, fmt_nl) "This will ensure a sufficient accuracy to determine a proper bandwidth."
+      write (OUTPUT_UNIT, fmt_nl) "This is primarily a concern for small array sizes."
 
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_nl)

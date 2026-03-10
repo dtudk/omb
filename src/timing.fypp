@@ -51,7 +51,7 @@ contains
 
    function timing_get_sys_tick() result(rate)
       real(real64) :: rate
-      rate = 1._real64/real(count_rate, real64)
+      rate = 1._real64/rcount_rate
    end function
 
    function timing_get_sys_max() result(ma)
@@ -71,20 +71,25 @@ contains
 
    end subroutine start
 
-   subroutine stop(timing, store)
+   subroutine stop(timing, store, counts)
       use omp_lib, only: omp_get_wtime
       class(timing_t), intent(inout) :: timing
       real(real64), intent(out), optional :: store
+      integer, intent(in), optional :: counts
       #:if defined("OMB_TIMING_SYSTEM_CLOCK")
          integer(int64) :: t1
       #:endif
 
       #:if defined("OMB_TIMING_SYSTEM_CLOCK")
          call system_clock(count=t1)
-         timing%time = (t1 - timing%t0)/real(count_rate, real64)
+         timing%time = (t1 - timing%t0)/rcount_rate
       #:else
          timing%time = omp_get_wtime() - timing%t0
       #:endif
+
+      if (present(counts)) then
+         timing%time = timing%time/counts
+      end if
 
       if (present(store)) then
          store = timing%time
