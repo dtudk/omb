@@ -273,6 +273,7 @@ function get_env {
 # Create a nested loop-construct based on the OMP_PLACES.
 # Currently, only the comma-separated one is acceptable.
 tmp_dir=$(mktemp --directory omb-driver.XXXXXX --tmpdir)
+trap "rm -rf '$tmp_dir' ; exit 1" SIGINT SIGKILL
 tmpdomains=$tmp_dir/domains
 tmpplaces=$tmp_dir/places
 
@@ -515,4 +516,5 @@ do
   [ $? -ne 0 ] && break
 done
 
+rm -rf "$tmp_dir"
 exit 0

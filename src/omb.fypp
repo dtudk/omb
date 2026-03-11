@@ -205,7 +205,7 @@ program main
             ! Don't do anything as the method will be correctly
             ! grabbed by the rest of the select case
 
-         case ("fill")
+         case ("fill", "write")
             method = METHOD_FILL
             results%info%narrays = 1
             results%info%stores = 1

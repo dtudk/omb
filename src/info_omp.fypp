@@ -67,7 +67,13 @@ contains
       use timing_m, only: timing_get_sys_max
 
       write (OUTPUT_UNIT, FMT_OMB_A) "alloc_type", "${OMB_ALLOC_TYPE}$"
-      write (OUTPUT_UNIT, FMT_OMB_I) "int_kind", ${OMB_INT_KIND}$
+      if (${OMB_INT_KIND}$ == int32) then
+         write (OUTPUT_UNIT, FMT_OMB_A) "int_kind", "int32"
+      else if (${OMB_INT_KIND}$ == int64) then
+         write (OUTPUT_UNIT, FMT_OMB_A) "int_kind", "int64"
+      else
+         write (OUTPUT_UNIT, FMT_OMB_A) "int_kind", "unknown" ! should never happen
+      end if
       #:if defined("OMB_TIMING_SYSTEM_CLOCK")
          write (OUTPUT_UNIT, FMT_OMB_A) "timing", "system_clock"
       #:else
