@@ -504,9 +504,6 @@ contains
                      end do
                   #:endif
 
-                  @:TYPE_IS(kernel_workshare_t)
-                  stop UNKNOWN_METHOD_STOP
-
                   #:if defined("OMB_OMP_TASKLOOP")
                      @:TYPE_IS(kernel_taskloop_t)
                      do it_sub = 1, options%it_per_timing
