@@ -212,6 +212,13 @@ program main
             results%info%reads = 0
             results%info%flop = 0
 
+         case ("read")
+            method = METHOD_READ
+            results%info%narrays = 1
+            results%info%stores = 0
+            results%info%reads = 1
+            results%info%flop = 0
+
          case ("sum")
             method = METHOD_SUM
             results%info%narrays = 1
@@ -371,11 +378,9 @@ program main
             iarg = iarg + 1
             call read_and_check_next_arg(iarg, arg)
 
+            ! For a negative number, this means that we'll request
+            ! a specific number of timings
             read (arg, *) options%it
-            if (options%it < 1) then
-               write (ERROR_UNIT, *) "The number of iterations must be larger than 0!"
-               stop 4
-            end if
 
          case ("-it-per-timing")
 
@@ -587,6 +592,11 @@ program main
 
       @:CASE_DTYPE_BENCHMARK(bench_pentadd)
 
+   case (METHOD_READ)
+      method_str = "read"
+
+      @:CASE_DTYPE_BENCHMARK(bench_read)
+
    case (METHOD_SUM)
       method_str = "sum"
 
@@ -723,7 +733,9 @@ program main
          end block
 
          ! Forcefully update so we always do at least 2 iterations
-         if (options%it < options%it_per_timing*2) then
+         if (options%it < 0) then
+            options%it = options%it_per_timing*(-options%it)
+         else if (options%it < options%it_per_timing*2) then
             options%it = options%it_per_timing*2
          end if
 
@@ -1012,6 +1024,7 @@ contains
       write (OUTPUT_UNIT, fmt_ka) "fill -> a = 2."
       write (OUTPUT_UNIT, fmt_ka) "sum -> res = sum(a)"
       write (OUTPUT_UNIT, fmt_ka) "copy -> a = b"
+      write (OUTPUT_UNIT, fmt_ka) "read -> no usage of a"
       write (OUTPUT_UNIT, fmt_ka) "fs:triad -> a = b + c*2"
       write (OUTPUT_UNIT, fmt_koa) "false-sharing access."
       write (OUTPUT_UNIT, fmt_ka) "fs:tetrad -> a = b + c*d"
@@ -1064,10 +1077,12 @@ contains
       write (OUTPUT_UNIT, fmt_oa) "NOTE: The total iterations will be as close to this value as possible."
       write (OUTPUT_UNIT, fmt_oa) "      The internal iterations will be it/it-per-timing such that"
       write (OUTPUT_UNIT, fmt_oa) "        it*it-per-timing is as close to the requested value as possible."
-      write (OUTPUT_UNIT, fmt_oa) "NOTE: The reported iterations for --debug is the total number of iterations."
-      write (OUTPUT_UNIT, fmt_oa) "The default is 2 times the default of it-per-timing."
       write (OUTPUT_UNIT, fmt_opt_a) "it-per-timing", "how many iterations are done per timing"
       write (OUTPUT_UNIT, fmt_oa) "Default is X iterations per timing such that the timing is ~100 ms."
+      write (OUTPUT_UNIT, fmt_nl)
+      write (OUTPUT_UNIT, fmt_oa) "-it/it-per-timing examples:"
+      write (OUTPUT_UNIT, fmt_oa) "    ... -it-per-timing 250 -> at least 2*250 iterations"
+      write (OUTPUT_UNIT, fmt_oa) "    ... -it -3 -it-per-timing 300 -> 3*300 iterations"
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "dtype", "which data-type to use"

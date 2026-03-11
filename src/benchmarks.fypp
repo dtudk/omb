@@ -95,8 +95,10 @@ module benchmarks_m
    integer, public, parameter :: METHOD_TETRADD = 9
    integer, public, parameter :: METHOD_FALSE_SHARING_TETRADD = 10
    integer, public, parameter :: METHOD_PENTADD = 11
+   integer, public, parameter :: METHOD_READ = 12
 
    #:for real in REALS
+      public :: bench_read_${real}$
       public :: bench_add_${real}$
       public :: bench_scale_${real}$
       public :: bench_copy_${real}$
@@ -243,6 +245,324 @@ contains
       end subroutine
 
       ! Beginning of benchmark methods
+
+      subroutine bench_read_${real}$ (n, options, results)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
+         integer :: it, it_sub, team
+         type(timing_t) :: timing
+
+         !interface
+         !   subroutine dummy_${real}$(v)
+         !      real(${real}$), intent(in) :: v
+         !   end subroutine
+         !end interface
+         external :: dummy_${real}$
+
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a)
+
+!$omp parallel
+         call array_allocate(n, a, options)
+         call init_array(n, a, 0.5_${real}$, options)
+!$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+         end if
+
+         select type (kernel => options%kernel)
+
+         type is (kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do it_sub = 1, options%it_per_timing
+                  do i = 1, n
+                     call dummy_${real}$ (a(i))
+                  end do
+               end do
+               call timing%stop(results%times(it), options%it_per_timing)
+            end do
+
+            #:if defined("OMB_OMP_TEAMS")
+               type is (kernel_teams_manual_t)
+!$omp teams private(it,it_sub,i,team,istart,iend) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+               call manual_split(n, istart, iend, in_teams=.true.)
+
+               team = omp_get_team_num()
+
+               do it = 1, options%it
+
+                  @:START_TIMING(in_teams=1)
+
+                  do it_sub = 1, options%it_per_timing
+                     ! Since we are doing this options%it times, we have to 0
+                     do i = istart, iend
+                        call dummy_${real}$ (a(i))
+                     end do
+
+                  end do
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
+               end do
+
+!$omp end teams
+
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (kernel_teams_distribute_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp distribute dist_schedule(static)
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end distribute
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+
+                  type is (kernel_teams_distribute_do_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp distribute parallel do dist_schedule(static)
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end distribute parallel do
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+               #:endif
+
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (kernel_teams_parallel_manual_t)
+!$omp teams private(it,it_sub,i,istart,iend) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+!$omp parallel private(it,it_sub,i,istart,iend)
+                  call manual_split(n, istart, iend)
+
+                  do it = 1, options%it
+
+                     @:START_TIMING()
+                     do it_sub = 1, options%it_per_timing
+
+                        do i = istart, iend
+                           call dummy_${real}$ (a(i))
+                        end do
+                     end do
+
+                     @:STOP_TIMING(results%times(it))
+
+                  end do
+!$omp end parallel
+
+!$omp end teams
+
+                  type is (kernel_teams_parallel_do_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp parallel do schedule(runtime)
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end parallel do
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+
+                  type is (kernel_teams_parallel_loop_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp parallel
+!$omp loop
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end loop
+!$omp end parallel
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+               #:endif
+            #:endif
+
+         class default
+
+!$omp parallel private(it,it_sub,i,istart,iend)
+            call manual_split(n, istart, iend)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(kernel_manual_t)
+                  do it_sub = 1, options%it_per_timing
+                     do i = istart, iend
+                        call dummy_${real}$ (a(i))
+                     end do
+                  end do
+
+                  @:TYPE_IS(kernel_manual_simd_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp simd
+                     do i = istart, iend
+                        call dummy_${real}$ (a(i))
+                     end do
+!$omp end simd
+                  end do
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp simd nontemporal(a)
+                        do i = istart, iend
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end simd
+                     end do
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp do schedule(runtime)
+                     do i = 1, n
+                        call dummy_${real}$ (a(i))
+                     end do
+!$omp end do
+                  end do
+
+                  @:TYPE_IS(kernel_do_simd_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp do simd schedule(${SIMD_SCHEDULE}$)
+                     do i = 1, n
+                        call dummy_${real}$ (a(i))
+                     end do
+!$omp end do simd
+                  end do
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a)
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end do simd
+                     end do
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
+                  stop UNKNOWN_METHOD_STOP
+
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(kernel_taskloop_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp single
+!$omp taskloop num_tasks(kernel%num_tasks)
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end taskloop
+!$omp end single nowait
+!$omp taskwait
+                     end do
+
+                     @:TYPE_IS(kernel_taskloop_simd_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp single
+!$omp taskloop simd num_tasks(kernel%num_tasks)
+                        do i = 1, n
+                           call dummy_${real}$ (a(i))
+                        end do
+!$omp end taskloop simd
+!$omp end single nowait
+!$omp taskwait
+                     end do
+                  #:endif
+
+                  @:TYPE_IS(kernel_loop_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp loop
+                     do i = 1, n
+                        call dummy_${real}$ (a(i))
+                     end do
+!$omp end loop
+                  end do
+
+               class default
+
+                  stop UNKNOWN_METHOD_STOP
+
+               end select
+
+               @:STOP_TIMING(results%times(it))
+
+            end do
+
+!$omp end parallel
+
+         end select
+
+         if (options%test) then
+            write (*, test_fmt) sum(a(1:n)) - n*0.5_${real}$
+         end if
+
+         @:ARRAY_DEALLOC(a)
+
+      end subroutine
 
       subroutine bench_sum_${real}$ (n, options, results)
          integer(${OMB_INT_KIND}$), intent(in) :: n
@@ -523,7 +843,7 @@ contains
                            sum_a = sum_a + a(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -536,7 +856,7 @@ contains
                            sum_a = sum_a + a(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -841,7 +1161,7 @@ contains
                            a(i) = fill
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -853,7 +1173,7 @@ contains
                            a(i) = fill
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -1157,7 +1477,7 @@ contains
                            a(i) = b(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -1169,7 +1489,7 @@ contains
                            a(i) = b(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -1476,7 +1796,7 @@ contains
                            a(i) = scale*b(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -1488,7 +1808,7 @@ contains
                            a(i) = scale*b(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -1794,7 +2114,7 @@ contains
                            a(i) = b(i) + c(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -1806,7 +2126,7 @@ contains
                            a(i) = b(i) + c(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -2115,7 +2435,7 @@ contains
                            a(i) = b(i) + scale*c(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -2127,7 +2447,7 @@ contains
                            a(i) = b(i) + scale*c(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -2435,7 +2755,7 @@ contains
                            a(i) = b(i) + c(i)*d(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -2447,7 +2767,7 @@ contains
                            a(i) = b(i) + c(i)*d(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -2757,7 +3077,7 @@ contains
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -2769,7 +3089,7 @@ contains
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -3076,7 +3396,7 @@ contains
                            a(i) = a(i) + scale*b(i)
                         end do
 !$omp end taskloop
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
 
@@ -3088,7 +3408,7 @@ contains
                            a(i) = a(i) + scale*b(i)
                         end do
 !$omp end taskloop simd
-!$omp end single
+!$omp end single nowait
 !$omp taskwait
                      end do
                   #:endif
@@ -3570,3 +3890,10 @@ contains
    end subroutine
 
 end module benchmarks_m
+
+#:for real in REALS
+   subroutine dummy_${real}$ (v)
+      use iso_fortran_env, only: ${real}$
+      real(${real}$), intent(in) :: v
+   end subroutine
+#:endfor
