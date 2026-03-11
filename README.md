@@ -132,6 +132,7 @@ in `3*8=24` bytes per element operation (equivalent to STREAMS way of counting).
 | `add`    | `a = b + c`     | 3 | 1 | 3 |
 | `fill`   | `a = 2.`        | 1 | 0 | 1 |
 | `sum`    | `res = sum(a)`  | 1 | 1 | 1 |
+| `read`   | `dummy(a)`      | 1 | 0 | 1 |
 | `copy`   |  `a = b`        | 2 | 0 | 2 |
 
 
