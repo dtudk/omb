@@ -23,7 +23,7 @@ module info_omp_m
 
    type info_env_t
 
-      !< Whether or not to show things!Hansen
+      !< Whether or not to show things!
       logical :: show = .false.
 
       !< Show teams information

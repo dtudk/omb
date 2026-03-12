@@ -990,26 +990,16 @@ def merge_experiment(exps: ExperimentContext, debug: bool, experiment):
 
 @cli.command("select")
 @debug_option
-@click.argument("select", type=str)
+@click.argument("selections", type=str)
 @pass_exps
-def select_experiment(exps: ExperimentContext, debug: bool, select: str):
+def select_experiment(exps: ExperimentContext, debug: bool, selections: str):
     """Reduce the data-array by selecting a certain value from a coordinate."""
     debug = debug or exps.debug
 
     # Get latest experiment
     ds = exps.stack.experiment
-
-    try:
-        name_coord, value = select.split("=", maxsplit=1)
-        if debug:
-            _pprint(f"select_experiment: {select} -> {name_coord} = {value}")
-        # extract coord
-        coord = ds.coords[name_coord]
-    except ValueError:
-        name_coord = select
-        if debug:
-            _pprint(f"select_experiment: {select} -> {name_coord}")
-        value = None
+    if debug:
+        _pprint(f"select_experiment: {selections}")
 
     def conv(coord, value):
         try:
@@ -1026,25 +1016,38 @@ def select_experiment(exps: ExperimentContext, debug: bool, select: str):
             return None
         return value
 
-    if value is None:
-        # variable extraction
-        ds = ds[name_coord]
+    for select in selections.split(","):
+        try:
+            name_coord, value = select.split("=", maxsplit=1)
+            if debug:
+                _pprint(f"select_experiment: {select} -> {name_coord} = {value}")
+            # extract coord
+            coord = ds.coords[name_coord]
+        except ValueError:
+            name_coord = select
+            if debug:
+                _pprint(f"select_experiment: {select} -> {name_coord}")
+            value = None
 
-    elif ":" in value:
-        # We are doing a ranged selection
-        r_min, r_max = value.split(":")
-        r_min = conv(coord, r_min)
-        r_max = conv(coord, r_max)
-        sl = slice(r_min, r_max)
-        ds = ds.omb.sel(name_coord, sl)
-        if debug:
-            _pprint(f"select_experiment: {value} -> {sl!s}")
+        if value is None:
+            # variable extraction
+            ds = ds[name_coord]
 
-    else:
-        value = conv(coord, value)
-        ds = ds.groupby(name_coord)[value]
-        if debug:
-            _pprint(f"select_experiment: {name_coord}={value!s}")
+        elif ":" in value:
+            # We are doing a ranged selection
+            r_min, r_max = value.split(":")
+            r_min = conv(coord, r_min)
+            r_max = conv(coord, r_max)
+            sl = slice(r_min, r_max)
+            ds = ds.omb.sel(name_coord, sl)
+            if debug:
+                _pprint(f"select_experiment: {value} -> {sl!s}")
+
+        else:
+            value = conv(coord, value)
+            ds = ds.groupby(name_coord)[value]
+            if debug:
+                _pprint(f"select_experiment: {name_coord}={value!s}")
 
     exps.stack.push(ds)
 
@@ -1412,7 +1415,7 @@ def save_fig(fig, filename):
 class OptionDataArrayHasCoords:
     options: list[str] = field(default_factory=list)
 
-    def get_default(self, ds) -> str:
+    def get_default(self, ds: XRData | XRGroup) -> str:
         """Determine which of the options are the required ones"""
         if isinstance(ds, XRData):
             for option in self.options:
@@ -1643,6 +1646,7 @@ def line_command(exps, debug: bool, x, y, xscale, yscale, row, col, hue):
 
     # Gather all coords that are requested.
     all_axis_coords = [x, row, col, hue]
+    # Remove empty/none coords
     all_axis_coords = list(filter(lambda coord: coord, all_axis_coords))
 
     def _plot(ds):
