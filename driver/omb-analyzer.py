@@ -988,18 +988,9 @@ def merge_experiment(exps: ExperimentContext, debug: bool, experiment):
     exps.stack.push(experiment)
 
 
-@cli.command("select")
-@debug_option
-@click.argument("selections", type=str)
-@pass_exps
-def select_experiment(exps: ExperimentContext, debug: bool, selections: str):
-    """Reduce the data-array by selecting a certain value from a coordinate."""
-    debug = debug or exps.debug
-
+def _parse_selections(ds: XRData, selections: str, debug: bool = False) -> list:
+    """Parse a selection, same selection parses for drop/select"""
     # Get latest experiment
-    ds = exps.stack.experiment
-    if debug:
-        _pprint(f"select_experiment: {selections}")
 
     def conv(coord, value):
         try:
@@ -1016,89 +1007,91 @@ def select_experiment(exps: ExperimentContext, debug: bool, selections: str):
             return None
         return value
 
+    selects = []
     for select in selections.split(","):
         try:
             name_coord, value = select.split("=", maxsplit=1)
             if debug:
-                _pprint(f"select_experiment: {select} -> {name_coord} = {value}")
+                _pprint(f"parse_selection: {select} -> {name_coord} = {value}")
             # extract coord
             coord = ds.coords[name_coord]
         except ValueError:
             name_coord = select
             if debug:
-                _pprint(f"select_experiment: {select} -> {name_coord}")
-            value = None
+                _pprint(f"parse_selection: {select} -> {name_coord}")
+            selects.append((name_coord, None))
+            continue
 
-        if value is None:
-            # variable extraction
-            ds = ds[name_coord]
-
-        elif ":" in value:
+        if ":" in value:
             # We are doing a ranged selection
             r_min, r_max = value.split(":")
             r_min = conv(coord, r_min)
             r_max = conv(coord, r_max)
             sl = slice(r_min, r_max)
+            selects.append((name_coord, sl))
             ds = ds.omb.sel(name_coord, sl)
             if debug:
                 _pprint(f"select_experiment: {value} -> {sl!s}")
 
         else:
             value = conv(coord, value)
+            selects.append((name_coord, value))
             ds = ds.groupby(name_coord)[value]
             if debug:
                 _pprint(f"select_experiment: {name_coord}={value!s}")
+
+    return selects
+
+
+@cli.command("select")
+@debug_option
+@click.argument("selections", type=str)
+@pass_exps
+def select_experiment(exps: ExperimentContext, debug: bool, selections: str):
+    """Reduce the data-array by selecting a certain value from a coordinate."""
+    debug = debug or exps.debug
+
+    # Get latest experiment
+    ds = exps.stack.experiment
+    if debug:
+        _pprint(f"select_experiment: {selections}")
+
+    for coord, value in _parse_selections(ds, selections, debug):
+        if value is None:
+            ds = ds[value]
+
+        elif isinstance(value, slice):
+            ds = ds.omb.sel(coord, value)
+        else:
+            ds = ds.groupby(coord)[value]
 
     exps.stack.push(ds)
 
 
 @cli.command("drop")
 @debug_option
-@click.argument("drop", type=str)
+@click.argument("selections", type=str)
 @pass_exps
-def drop_experiment(exps: ExperimentContext, debug: bool, drop: str):
+def drop_experiment(exps: ExperimentContext, debug: bool, selections: str):
     """Reduce the data-array by removing a certain value from a coordinate."""
     debug = debug or exps.debug
 
     # Get latest experiment
     ds = exps.stack.experiment
+    if debug:
+        _pprint(f"select_experiment: {selections}")
 
-    try:
-        name_coord, value = drop.split("=", maxsplit=1)
-        # extract coord
-        coord = ds.coords[name_coord]
-    except ValueError:
-        name_coord = drop
-        value = None
+    for coord, value in _parse_selections(ds, selections, debug):
+        if value is None:
+            ds = ds.drop_vars(coord)
 
-    def conv(coord, value):
-        try:
-            return coord.dtype.type(value)
-        except TypeError:
-            pass  # likely not a numpy dtype, so we assume it's a string
-        except ValueError:
-            return None
-        return value
-
-    if value is None:
-        # variable extraction
-        ds = ds.drop_vars(name_coord)
-
-    elif ":" in value:
-        # We are doing a ranged selection
-        r_min, r_max = value.split(":")
-        r_min = conv(coord, r_min)
-        r_max = conv(coord, r_max)
-        ds = ds.omb.drop_sel(name_coord, slice(r_min, r_max))
-
-    else:
-        value = conv(coord, value)
-        ds = ds.omb.drop_sel(name_coord, value)
+        else:
+            ds = ds.omb.drop_sel(coord, value)
 
     exps.stack.push(ds)
 
 
-@cli.command("domain")
+@cli.command("domains")
 @debug_option
 @click.argument("domains", type=str)
 @click.option("--debug", is_flag=True, default=False)
@@ -1110,18 +1103,27 @@ def drop_experiment(exps: ExperimentContext, debug: bool, drop: str):
     show_choices=True,
 )
 @pass_exps
-def domain_experiment(
+def domains_experiment(
     exps: ExperimentContext, debug: bool, domains: str, reduce_func: str
 ):
-    """Combine several places into separate *domains*."""
+    """Combine several places into separate *domains*.
+
+    Domains can be specified in similar ways to OMP_PLACES
+    environment variable.
+
+    - 0:2,2:4,4:8,8:12 will result in 4 domains.
+      [[0, 1], [2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]
+    - {0:2}:2,{4:8}:4 is equivalent to the above
+    """
     debug = debug or exps.debug
     if debug:
-        _pprint("domain_experiment: {domains}")
+        _pprint(f"domains_experiment: {domains}")
 
     # Get latest experiment
     ds = exps.stack.experiment
     reduce_func = {"avg": "mean", "average": "mean"}.get(reduce_func, reduce_func)
 
+    # Define our parser
     pint = pp.Word(pp.nums).add_parse_action(lambda toks: int(toks[0]))
     COLON = pp.Suppress(":")
     NOT_COLON = pp.NotAny(":")
@@ -1212,7 +1214,7 @@ def domain_experiment(
 
     for result in grammar.parse_string(domains, parse_all=True):
         if debug:
-            _pprint(f"domain_result: {result}")
+            _pprint(f"domains_grammer: {result}")
         if isinstance(result[0], pp.ParseResults):
             if not isinstance(result[0][0], pp.ParseResults):
                 # a direct subset
@@ -1240,13 +1242,16 @@ def domain_experiment(
         else:
             place_domains.append(list(result))
 
+    if debug:
+        _pprint(f"domains_result: {place_domains}")
+
     def add_domain(ds, domains):
         """Add domains as new coords."""
         add_coords = {}
         domains = [np.asarray(domain).astype(np.str_) for domain in domains]
         for place in ds.omb.place_names(force=True):
             if debug:
-                _pprint(f"domain_place: {place}")
+                _pprint(f"domains_place: {place}")
             place_id = place.split("_")[1]
             # For places where there are multiple locations (e.g. 0,1)
             place_coord = ds.coords[place].astype(np.str_).str.split("split", ",")
@@ -1619,6 +1624,13 @@ def line(da, x, y, col, row, xscale, yscale, hue):
 
     if hue is not None:
         defaults["hue"] = hue
+
+    try:
+        x_info = da.omb.get_coord(x)
+        da[x].attrs["standard_name"] = x_info.description
+        da[x].attrs["units"] = x_info.unit
+    except:
+        pass
 
     y_info = da.omb.get_coord(y)
     da.attrs["standard_name"] = y_info.description
