@@ -255,12 +255,12 @@ contains
          integer :: it, it_sub, team
          type(timing_t) :: timing
 
-         !interface
-         !   subroutine dummy_${real}$(v)
-         !      real(${real}$), intent(in) :: v
-         !   end subroutine
-         !end interface
-         external :: dummy_${real}$
+         interface dummy
+            subroutine dummy_${real}$ (v)
+               use iso_fortran_env, only: ${real}$
+               real(${real}$), intent(in) :: v
+            end subroutine
+         end interface
 
          @:ARRAY_DEFINE(${real}$, n + options%offset, a)
 
@@ -281,7 +281,7 @@ contains
                call timing%start()
                do it_sub = 1, options%it_per_timing
                   do i = 1, n
-                     call dummy_${real}$ (a(i))
+                     call dummy(a(i))
                   end do
                end do
                call timing%stop(results%times(it), options%it_per_timing)
@@ -302,7 +302,7 @@ contains
                   do it_sub = 1, options%it_per_timing
                      ! Since we are doing this options%it times, we have to 0
                      do i = istart, iend
-                        call dummy_${real}$ (a(i))
+                        call dummy(a(i))
                      end do
 
                   end do
@@ -326,7 +326,7 @@ contains
 
 !$omp distribute dist_schedule(static)
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end distribute
                      end do
@@ -350,7 +350,7 @@ contains
 
 !$omp distribute parallel do dist_schedule(static)
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end distribute parallel do
                      end do
@@ -376,7 +376,7 @@ contains
                      do it_sub = 1, options%it_per_timing
 
                         do i = istart, iend
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
                      end do
 
@@ -400,7 +400,7 @@ contains
 
 !$omp parallel do schedule(runtime)
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end parallel do
                      end do
@@ -425,7 +425,7 @@ contains
 !$omp parallel
 !$omp loop
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end loop
 !$omp end parallel
@@ -451,7 +451,7 @@ contains
                   @:TYPE_IS(kernel_manual_t)
                   do it_sub = 1, options%it_per_timing
                      do i = istart, iend
-                        call dummy_${real}$ (a(i))
+                        call dummy(a(i))
                      end do
                   end do
 
@@ -459,7 +459,7 @@ contains
                   do it_sub = 1, options%it_per_timing
 !$omp simd
                      do i = istart, iend
-                        call dummy_${real}$ (a(i))
+                        call dummy(a(i))
                      end do
 !$omp end simd
                   end do
@@ -469,7 +469,7 @@ contains
                      do it_sub = 1, options%it_per_timing
 !$omp simd nontemporal(a)
                         do i = istart, iend
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end simd
                      end do
@@ -479,7 +479,7 @@ contains
                   do it_sub = 1, options%it_per_timing
 !$omp do schedule(runtime)
                      do i = 1, n
-                        call dummy_${real}$ (a(i))
+                        call dummy(a(i))
                      end do
 !$omp end do
                   end do
@@ -488,7 +488,7 @@ contains
                   do it_sub = 1, options%it_per_timing
 !$omp do simd schedule(${SIMD_SCHEDULE}$)
                      do i = 1, n
-                        call dummy_${real}$ (a(i))
+                        call dummy(a(i))
                      end do
 !$omp end do simd
                   end do
@@ -498,7 +498,7 @@ contains
                      do it_sub = 1, options%it_per_timing
 !$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a)
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end do simd
                      end do
@@ -510,7 +510,7 @@ contains
 !$omp single
 !$omp taskloop num_tasks(kernel%num_tasks)
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end taskloop
 !$omp end single nowait
@@ -522,7 +522,7 @@ contains
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks)
                         do i = 1, n
-                           call dummy_${real}$ (a(i))
+                           call dummy(a(i))
                         end do
 !$omp end taskloop simd
 !$omp end single nowait
@@ -534,7 +534,7 @@ contains
                   do it_sub = 1, options%it_per_timing
 !$omp loop
                      do i = 1, n
-                        call dummy_${real}$ (a(i))
+                        call dummy(a(i))
                      end do
 !$omp end loop
                   end do
