@@ -1,0 +1,9 @@
+#:include "common.fypp"
+
+! Dummy routines for calling stuff
+#:for real in REALS
+   subroutine dummy_${real}$ (v)
+      use iso_fortran_env, only: ${real}$
+      real(${real}$), intent(in) :: v
+   end subroutine
+#:endfor

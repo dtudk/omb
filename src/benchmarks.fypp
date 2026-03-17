@@ -3887,10 +3887,3 @@ contains
    end subroutine
 
 end module benchmarks_m
-
-#:for real in REALS
-   subroutine dummy_${real}$ (v)
-      use iso_fortran_env, only: ${real}$
-      real(${real}$), intent(in) :: v
-   end subroutine
-#:endfor

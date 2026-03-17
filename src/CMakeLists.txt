@@ -9,6 +9,7 @@ omb_fyppify(
     info_omp.fypp
     omb.fypp
     timing.fypp
+    dummies.fypp
   OUTPUT omb_fypp_sources
 )
 
