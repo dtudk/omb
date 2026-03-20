@@ -126,12 +126,34 @@ class OMBAccessor:
     @classmethod
     def get_coord(cls, coord: str) -> Coord:
         """Return the coord object that has the key as `coord`"""
+        position_coords = ["position", "place", "domain"]
+        for position_coord in position_coords:
+            if coord.startswith(position_coord):
+                return cls.Coord(position_coord, "category", "Position")
         return cls.DATA[cls.DATA.index(coord)]
 
     @property
     def nthreads(self) -> int:
         """Return number of threads in this run."""
         return len(self._obj.omb.place_names())
+
+    @property
+    def nbenchmarks(self) -> int:
+        """Get number of benchmarks"""
+        return len(self._obj["benchmark"])
+
+    @property
+    def npositions(self) -> int:
+        """Return number of threads in this run."""
+        ds: xr.Dataset = self._obj
+        pos_names = ds.omb.position_names()
+        max_pos = 0
+        for pos in pos_names:
+            place_coord = (
+                ds.coords[pos].astype(np.str_).str.split("split", ",").astype(np.int32)
+            )
+            max_pos = max(max_pos, place_coord.max())
+        return int(max_pos) + 1
 
     def dims_alone(self) -> list[str]:
         """Return a list of the dimensions that are "singly" defined"""
@@ -287,6 +309,19 @@ class OMBAccessor:
             idx = (ds.coords[coord].values == value).nonzero()[0]
         return ds.isel(benchmark=idx)
 
+    @property
+    def position_name(self) -> str:
+        """Determine the place/domain name and return the corresponding list"""
+        if "place_0" in self._obj.coords:
+            return "place"
+        return "domain"
+
+    def position_names(self) -> list[str]:
+        """Determine the place/domain name and return the corresponding list"""
+        if "place_0" in self._obj.coords:
+            return self.place_names()
+        return self.domain_names()
+
     def place_names(self, force: bool = False) -> list[str]:
         """Return the place-names of this object"""
         return get_place_names(self._obj, prefix="place", force=force)
@@ -294,6 +329,51 @@ class OMBAccessor:
     def domain_names(self) -> list[str]:
         """Return the place-names of this object"""
         return get_place_names(self._obj, prefix="domain", force=True)
+
+    def create_position_count_coord(self):
+        """Transpose the 'place/domain' coords and create a sum of the places"""
+        ds: xr.Dataset = self._obj
+
+        position_name = self.position_name
+        position_names = self.position_names()
+        max_positions = self.npositions
+        count_places = np.zeros([self.nbenchmarks, max_positions], dtype=np.int32)
+
+        # Loop across all unique positions.
+        # This should be an outer loop because a position can be
+        # valid for every different place.
+        for ipos in range(max_positions):
+            str_pos = str(ipos)
+            for position in position_names:
+                idx = ds.coords[position].isin(str_pos)
+                count_places[idx, ipos] += 1
+
+        # They should all have run on the same number of positions
+        assert np.all(np.sum(count_places, axis=1) == len(position_names))
+
+        # At this point, count_places has this format:
+        # [
+        #  [<appearences in ID-0>,
+        #   <appearences in ID-1>,
+        #   ...,
+        #   <appearences in ID-N>]
+        # Let's collapse it into a single entry
+        new_count = (
+            xr.DataArray(
+                data=count_places,
+                dims=["benchmark", "counts"],
+                coords=dict(benchmark=ds.coords["benchmark"]),
+            )
+            .astype(np.str_)
+            .str.join(dim="counts", sep=",")
+        )
+        return ds.assign_coords({f"{position_name}_count": new_count})
+
+    def create_bandwidth_errors(self, coord: str = "bandwidth_gbs"):
+        """Create a new column that contains error-bars in Bandwidth / GBS"""
+        ds = self._obj
+        ds[f"{coord}_err"] = ds[coord] * ds["time_min"] / ds["time_std"]
+        return ds
 
     @staticmethod
     def read(file: str | Path) -> xr.Dataset:
@@ -491,6 +571,72 @@ def seq_remove(seq: list | tuple | set | dict, items) -> T.Any:
 
     # we assume it is some dict-type
     return obj(filter(lambda x: x[0] not in items, seq.items()))
+
+
+def _get_grouper_coords(groupers):
+    """Return a list of Coord classes with descriptions etc."""
+
+    def get_coord(group):
+        name = group.name
+        try:
+            return OMBAccessor.get_coord(name)
+        except ValueError:
+            # We have to create a fake one
+            return OMBAccessor.Coord(name, name, name)
+
+    coords = list(map(get_coord, groupers))
+
+    return coords
+
+
+def _coords_to_description(coords):
+    if len(coords) == 0:
+        return ""
+    elif len(coords) > 1:
+        description_str = ", ".join([coord.description for coord in coords])
+    else:
+        description_str = coords[0].description
+
+    return description_str
+
+
+def _coord_index(coords: list[OMBAccessor.Coord], name: str | None) -> int:
+    if name is None:
+        return -1
+    for i, coord in enumerate(coords):
+        if coord.name == name:
+            return i
+    return -1
+
+
+def _coord_indices(coords: list[OMBAccessor.Coord], names: list[str]) -> list[int]:
+    idxs = []
+    for name in names:
+        idx = _coord_index(coords, name)
+        if idx >= 0:
+            idxs.append(idx)
+    return idxs
+
+
+def _remove_indices(values, idxs: list[int]) -> list:
+    if not idxs:
+        return values
+    if not isinstance(values, tuple):
+        values = (values,)
+    new_v = []
+    for i, v in enumerate(values):
+        if i not in idxs:
+            new_v.append(v)
+    return new_v
+
+
+def _values_to_title(value):
+    if isinstance(value, (list, tuple)):
+        value_str = ", ".join([str(v) for v in value])
+    else:
+        value_str = str(value)
+
+    return value_str
 
 
 @singledispatch
@@ -694,53 +840,6 @@ def join_place_names(dx: XRData, sep: str = " ", edgeitems: int = 2) -> np.ndarr
     return join_coords(dx, place_names, sep=sep, edgeitems=edgeitems)
 
 
-debug_option = click.option("--debug", is_flag=True, default=False)
-
-
-def add_options(options):
-    def _add_options(func):
-        for option in reversed(options):
-            func = option(func)
-        return func
-
-    return _add_options
-
-
-def _echo(obj):
-    click.echo(obj)
-
-
-def _pprint(obj):
-    from rich.pretty import pprint
-
-    pprint(obj)
-
-
-# Ensure our context has the obj as a dictionary
-@dataclass
-class ExperimentStack:
-    experiments: list[XRData] = field(default_factory=list)
-
-    def __len__(self) -> int:
-        return len(self.experiments)
-
-    def __iter__(self):
-        yield from self.experiments
-
-    def push(self, experiment: XRData) -> None:
-        """Push an experiment to the stack"""
-        self.experiments.append(experiment)
-
-    def pop(self):
-        """Pops the latest experiment off the stack"""
-        return self.experiments.pop()
-
-    @property
-    def experiment(self) -> XRData:
-        """Returns the latest experiment off the stack"""
-        return self.experiments[-1]
-
-
 class CacheLevel(IntEnum):
     """Enum representing cache levels"""
 
@@ -910,6 +1009,31 @@ class CPUInfo:
     sockets: int = 1
 
 
+# Ensure our context has the obj as a dictionary
+@dataclass
+class ExperimentStack:
+    experiments: list[XRData] = field(default_factory=list)
+
+    def __len__(self) -> int:
+        return len(self.experiments)
+
+    def __iter__(self):
+        yield from self.experiments
+
+    def push(self, experiment: XRData) -> None:
+        """Push an experiment to the stack"""
+        self.experiments.append(experiment)
+
+    def pop(self):
+        """Pops the latest experiment off the stack"""
+        return self.experiments.pop()
+
+    @property
+    def experiment(self) -> XRData:
+        """Returns the latest experiment off the stack"""
+        return self.experiments[-1]
+
+
 @dataclass
 class ExperimentContext:
     stack: ExperimentStack = field(default_factory=ExperimentStack)
@@ -924,6 +1048,8 @@ class ExperimentContext:
 
 # Define basic stuff
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
+
+
 pass_exps = click.make_pass_decorator(ExperimentContext, ensure=True)
 arg_experiment = click.argument(
     "experiment",
@@ -933,6 +1059,66 @@ arg_experiment = click.argument(
     # TODO ensure it allows multiple=True
     callback=lambda ctx, param, value: merge_files([value]),
 )
+
+
+debug_option = click.option("--debug", is_flag=True, default=False)
+
+
+@dataclass
+class PlotSave:
+    file: str | None
+
+    def __post_init__(self):
+        """Determine which figures we should save"""
+        if self.file is None:
+            return
+        if Path(self.file).suffix not in ".png .svg .pdf":
+            self.file += ".png"
+
+    def save(self, fig, **kwargs):
+        """Save for all figures"""
+        if self.file is None:
+            return
+
+        file = self.file.format(**kwargs)
+        fig.savefig(file)
+
+
+def create_plot_save(ctx, param, value):
+    return PlotSave(value)
+
+
+plot_save = click.option(
+    "--save",
+    type=str,
+    default=None,
+    help=dedent(
+        """
+                           Store the images in a output file using 'plt.savefig`.
+
+                           Use {group} to input the currently grabbed group values in the filename."""
+    ),
+    callback=create_plot_save,
+)
+
+
+def add_options(options):
+    def _add_options(func):
+        for option in reversed(options):
+            func = option(func)
+        return func
+
+    return _add_options
+
+
+def _echo(obj):
+    click.echo(obj)
+
+
+def _pprint(obj):
+    from rich.pretty import pprint
+
+    pprint(obj)
 
 
 # Define our command groups
@@ -1111,6 +1297,7 @@ def domains_experiment(
     Domains can be specified in similar ways to OMP_PLACES
     environment variable.
 
+    \b
     - 0:2,2:4,4:8,8:12 will result in 4 domains.
       [[0, 1], [2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]
     - {0:2}:2,{4:8}:4 is equivalent to the above
@@ -1210,7 +1397,7 @@ def domains_experiment(
     def extract_domain(result):
         if debug:
             _pprint(f"extract_domain: {result}")
-        return reduce(lambda a, b: a + list(b), result, [])
+        return np.array(reduce(lambda a, b: a + list(b), result, []), dtype=np.int32)
 
     for result in grammar.parse_string(domains, parse_all=True):
         if debug:
@@ -1223,7 +1410,7 @@ def domains_experiment(
                 # nested, so {..}:?
                 assert len(result) == 2
                 # a simple domain
-                domain = np.array(extract_domain(result[0]), dtype=np.int32)
+                domain = extract_domain(result[0])
 
                 cur_res = max(cur_res, domain.max())
                 stride = len(domain)
@@ -1238,7 +1425,7 @@ def domains_experiment(
                 for dist in range(num_places):
                     place_domains.append(domain + dist * stride)
                     max_res = max(max_res, place_domains[-1].max())
-            max_res = max(max_res, place_domains[-1].max())
+            max_res = max(max_res, max(place_domains[-1]))
         else:
             place_domains.append(list(result))
 
@@ -1248,7 +1435,12 @@ def domains_experiment(
     def add_domain(ds, domains):
         """Add domains as new coords."""
         add_coords = {}
+        if debug:
+            _pprint(f"domains add_domain: {domains}")
+        max_domain = len(str(max(map(max, domains))))
         domains = [np.asarray(domain).astype(np.str_) for domain in domains]
+        max_domain_str = f"<U{max_domain+1}"
+
         for place in ds.omb.place_names(force=True):
             if debug:
                 _pprint(f"domains_place: {place}")
@@ -1256,13 +1448,16 @@ def domains_experiment(
             # For places where there are multiple locations (e.g. 0,1)
             place_coord = ds.coords[place].astype(np.str_).str.split("split", ",")
             # Copy it so we can re-create a new domain specification.
-            domain_coord = ds.coords[place].copy().astype(np.str_)
+            domain_coord = ds.coords[place].copy().astype(max_domain_str)
             domain_coord.name = f"domain_{place_id}"
             # clean the actual place, we'll fill it later.
             domain_coord[:] = ""
+
             for i, domain in enumerate(domains):
                 # check along the split and reduce along split dimension
                 idx = place_coord.isin(domain).any(dim="split")
+                if not idx.any():
+                    continue
                 domain_coord[idx] = domain_coord[idx].str.cat(" ", str(i))
             add_coords[domain_coord.name] = domain_coord.str.lstrip()
 
@@ -1315,7 +1510,6 @@ def groupby_experiment(exps: ExperimentContext, debug: bool, groupby: str):
 
     # Get latest experiment and group it
     ds = exps.stack.experiment
-    print(ds)
     ds = ds.groupby(groupby)
 
     exps.stack.push(ds)
@@ -1393,20 +1587,6 @@ def info(exps: ExperimentContext, coord, variable):
 def info_command(exps: ExperimentContext, coord: str, variable: str):
     """Shows information for the current experiment (after any grouping etc.)"""
     info(exps, coord, variable)
-
-
-plot_save = click.option(
-    "-s",
-    "--save",
-    type=str,
-    default=None,
-    help=dedent(
-        """Store the images in a output file using 'plt.savefig`.
-
-                         Use {group} to input the currently grabbed group values in the
-                         filename."""
-    ),
-)
 
 
 def save_fig(fig, filename):
@@ -1505,22 +1685,23 @@ def _prepare_data(ds, data, all_axis_coords):
             da = da.to_dataframe().set_index(all_axis_coords)
             cols = da.columns.to_numpy()
             cols = cols[cols != data]
+            if len(cols) > 0:
+                ve = None
             raise ValueError(
                 dedent(
                     f"""\
-
                     The dataset contains columns that should be grouped/selected.
 
                     Please look at data in the columns: {" ".join(cols)}."""
                 )
-            ) from None
+            ) from ve
 
     # Sort the place names (just to ensure its aligned)
     da: XRData = sorted_places(da)
 
     # xarray/matplotlib can't plot category elements (has to be converted to str)
     conv = {}
-    for place in da.omb.place_names() + da.omb.domain_names():
+    for place in da.omb.position_names():
         if place in da.coords:
             conv[place] = da.coords[place].astype(np.str_)
     da = da.assign_coords(conv)
@@ -1537,7 +1718,9 @@ def imshow(da, x, y, data, col, row, xscale, yscale):
         xscale=_get_coord_scale(da, x, xscale),
         yscale=_get_coord_scale(da, y, yscale),
     )
-    if row is None:
+    if row is None and col is None:
+        pass
+    elif row is None:
         defaults["col_wrap"] = _get_coord_wrap(da, col)
     else:
         defaults["row"] = row
@@ -1586,25 +1769,39 @@ def imshow_command(exps, x, y, data, xscale, yscale, row, col, save):
         da = _prepare_data(ds, data, all_axis_coords)
         if exps.debug:
             _pprint(da)
-        return imshow(da, x, y, data, col, row, xscale, yscale)
+        ax = imshow(da, x, y, data, col, row, xscale, yscale)
+        return ax
 
     plots = []
     if isinstance(ds, XRGroup):
-        name = ds.groupers[0].group.name
-        name_data = OMBAccessor.get_coord(name)
+
+        # Figure out if there are indices we should remove
+        # E.g. when one uses col/row then we shouldn't put
+        # this information in the description
+        coords = _get_grouper_coords(ds.groupers)
+        # Retrieve the indices that are in col/row
+        remove_idxs = _coord_indices(coords, [col, row])
+        remove_idxs.sort()
+        for rem_idx in reversed(remove_idxs):
+            del coords[rem_idx]
+        description_str = _coords_to_description(coords)
+        # In case we don't need it, simply don't add a super title
+        add_suptitle = len(description_str) > 0
 
         for value, grp in ds:
             p = _plot(grp)
-            p.fig.suptitle(f"{name_data.description} = {value}")
-            if save:
-                save_fig(p.fig, save.format(group=value))
+            if add_suptitle:
+                value = _remove_indices(value, remove_idxs)
+                value_str = _values_to_title(value)
+                p.fig.suptitle(f"{description_str} = {value_str}")
+            save.save(p.fig, group=value)
             plots.append(p)
 
     else:
         p = _plot(ds)
-        if save:
-            save_fig(p.fig, save.format(group=""))
+        save.save(p.fig)
         plots.append(p)
+
     return plots
 
 
@@ -1617,7 +1814,9 @@ def line(da, x, y, col, row, xscale, yscale, hue):
         xscale=_get_coord_scale(da, x, xscale),
         yscale=_get_coord_scale(da, y, yscale),
     )
-    if row is None:
+    if row is None and col is None:
+        pass
+    elif row is None:
         defaults["col_wrap"] = _get_coord_wrap(da, col)
     else:
         defaults["row"] = row
@@ -1636,16 +1835,18 @@ def line(da, x, y, col, row, xscale, yscale, hue):
     da.attrs["standard_name"] = y_info.description
     da.attrs["units"] = y_info.unit
 
-    return da.plot.line(**defaults)
+    ax = da.plot.line(**defaults)
+    return ax
 
 
 @cli.command("line")
 @debug_option
+@plot_save
 @common_plot_options(
     "--row", "--col", "--xscale", "--yscale", "--hue", __x="size", __y="bandwidth_gbs"
 )
 @pass_exps
-def line_command(exps, debug: bool, x, y, xscale, yscale, row, col, hue):
+def line_command(exps, debug: bool, x, y, xscale, yscale, row, col, hue, save):
     """Create a faceted line plot
 
     Advanced plotting functionality for plotting row/col data.
@@ -1656,17 +1857,167 @@ def line_command(exps, debug: bool, x, y, xscale, yscale, row, col, hue):
     # get latest experiment in stack
     ds: XRData | XRGroup = exps.stack.experiment
 
+    has_count = False
+    if isinstance(ds, XRGroup):
+        g1 = next(iter(ds.groups))
+        position_name = ds[g1].omb.position_name
+    else:
+        position_name = ds.omb.position_name
+    position_count = f"{position_name}_count"
+
+    def check_count(var):
+        nonlocal position_count, has_count
+        if var is None:
+            return var
+        if "count" in var:
+            has_count = True
+            return position_count
+        return var
+
+    row = check_count(row)
+    col = check_count(col)
+    hue = check_count(hue)
+
     # Gather all coords that are requested.
     all_axis_coords = [x, row, col, hue]
     # Remove empty/none coords
     all_axis_coords = list(filter(lambda coord: coord, all_axis_coords))
 
     def _plot(ds):
+        nonlocal has_count
+        if has_count:
+            ds = ds.omb.create_position_count_coord().drop_vars(ds.omb.position_names())
         da = _prepare_data(ds, y, all_axis_coords)
         if debug:
             _pprint("line_command:")
             _pprint(da)
         return line(da, x, y, col, row, xscale, yscale, hue)
+
+    plots = []
+    if isinstance(ds, XRGroup):
+
+        # Figure out if there are indices we should remove
+        # E.g. when one uses col/row then we shouldn't put
+        # this information in the description
+        coords = _get_grouper_coords(ds.groupers)
+        # Retrieve the indices that are in col/row
+        remove_idxs = _coord_indices(coords, [col, row])
+        remove_idxs.sort()
+        for rem_idx in reversed(remove_idxs):
+            del coords[rem_idx]
+        description_str = _coords_to_description(coords)
+        # In case we don't need it, simply don't add a super title
+        add_suptitle = len(description_str) > 0
+
+        for value, grp in ds:
+            p = _plot(grp)
+            if add_suptitle:
+                value = _remove_indices(value, remove_idxs)
+                value_str = _values_to_title(value)
+                p.fig.suptitle(f"{description_str} = {value_str}")
+            save.save(p.fig, group=value)
+            plots.append(p)
+
+    else:
+        p = _plot(ds)
+        save.save(p.fig)
+        plots.append(p)
+
+    return plots
+
+
+@cli.command("sns")
+@debug_option
+@plot_save
+@common_plot_options(
+    "--row",
+    "--col",
+    "--xscale",
+    "--yscale",
+    "--hue",
+    "--style",
+    __x="size",
+    __y="bandwidth_gbs",
+    __backend="line",
+)
+@pass_exps
+def backend_command(
+    exps, debug: bool, backend, x, y, xscale, yscale, row, col, hue, style, save
+):
+    """Create a faceted line plot
+
+    Advanced plotting functionality for plotting row/col data.
+    It respects the `groupby` command and will create a plot *per group*.
+    """
+    import seaborn as sns
+
+    debug = debug or exps.debug
+
+    # get latest experiment in stack
+    ds: XRData | XRGroup = exps.stack.experiment
+
+    if hasattr(sns, backend):
+        sns_plot = getattr(sns, backend)
+    elif hasattr(sns, f"{backend}plot"):
+        sns_plot = getattr(sns, f"{backend}plot")
+
+    has_count = False
+    position_name = ds.omb.position_name
+    position_count = f"{position_name}_count"
+
+    def check_count(var):
+        nonlocal position_count, has_count
+        if var is None:
+            return var
+        if "count" in var:
+            has_count = True
+            return position_count
+        return var
+
+    row = check_count(row)
+    col = check_count(col)
+    hue = check_count(hue)
+    style = check_count(style)
+    xscale = _get_coord_scale(ds, x, xscale)
+    yscale = _get_coord_scale(ds, y, yscale)
+
+    if has_count:
+        ds = ds.omb.create_position_count_coord().drop_vars(ds.omb.position_names())
+
+    all_axis_coords = [x, row, col, hue, style]
+    # Remove empty/none coords
+    all_axis_coords = list(filter(lambda coord: coord, all_axis_coords))
+
+    def _plot(ds):
+        da = _prepare_data(ds, y, all_axis_coords)
+
+        # Convert while retaining most dimensions
+        df = da.to_dataset().to_dataframe()
+        da = df.reset_index()
+        if debug:
+            _pprint(f"{backend}_command:")
+            _pprint(da)
+        if not (col is None and row is None):
+            g = sns.FacetGrid(
+                da, row=row, col=col, sharex=True, sharey=True, despine=True
+            )
+            return g.map(
+                sns_plot,
+                data=da,
+                x=x,
+                y=y,
+                hue=hue,
+                style=style,
+                # xscale=xscale,yscale=yscale,
+            )
+        return sns_plot(
+            data=da,
+            x=x,
+            y=y,
+            # xscale=xscale, yscale=yscale,
+            hue=hue,
+            style=style,
+        )
 
     plots = []
     if isinstance(ds, XRGroup):
@@ -1685,6 +2036,9 @@ def line_command(exps, debug: bool, x, y, xscale, yscale, row, col, hue):
     else:
         p = _plot(ds)
         plots.append(p)
+
+    if save:
+        save.save()
 
     return plots
 
