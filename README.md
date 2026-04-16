@@ -94,6 +94,11 @@ formats (e.g. `cmake ... -DOMB_INT_KIND=...`).
 
     Use the fortran intrinsic `system_clock`.
 
+- `OMB_SIMDLEN`
+  The length of the `simdlen` clauses. If not specified, `simdlen`
+  will not be associated with any `simd` constructs.
+
+  *NOTE*: `simdlen` is implementation specific (not under `omb` control).
 
 
 ## Running

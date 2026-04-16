@@ -457,7 +457,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         call dummy(a(i))
                      end do
@@ -467,7 +467,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a)
+!$omp simd nontemporal(a) ${SIMDLEN}$
                         do i = istart, iend
                            call dummy(a(i))
                         end do
@@ -486,7 +486,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         call dummy(a(i))
                      end do
@@ -496,7 +496,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a) ${SIMDLEN}$
                         do i = 1, n
                            call dummy(a(i))
                         end do
@@ -520,7 +520,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            call dummy(a(i))
                         end do
@@ -776,7 +776,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd reduction(+:sum_a)
+!$omp simd reduction(+:sum_a) ${SIMDLEN}$
                      do i = istart, iend
                         sum_a = sum_a + a(i)
                      end do
@@ -786,7 +786,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd reduction(+:sum_a) nontemporal(a)
+!$omp simd reduction(+:sum_a) nontemporal(a) ${SIMDLEN}$
                         do i = istart, iend
                            sum_a = sum_a + a(i)
                         end do
@@ -805,7 +805,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a) ${SIMDLEN}$
                      do i = 1, n
                         sum_a = sum_a + a(i)
                      end do
@@ -815,7 +815,8 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a) nontemporal(a)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a) &
+!$omp&  nontemporal(a) ${SIMDLEN}$
                         do i = 1, n
                            sum_a = sum_a + a(i)
                         end do
@@ -848,7 +849,7 @@ contains
                      do it_sub = 1, options%it_per_timing
 !$omp single
 !$omp taskloop simd num_tasks(kernel%num_tasks) &
-!$omp&  reduction(+:sum_a)
+!$omp&  reduction(+:sum_a) ${SIMDLEN}$
                         do i = 1, n
                            sum_a = sum_a + a(i)
                         end do
@@ -1095,7 +1096,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = fill
                      end do
@@ -1105,7 +1106,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a)
+!$omp simd nontemporal(a) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = fill
                         end do
@@ -1124,7 +1125,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = fill
                      end do
@@ -1134,7 +1135,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = fill
                         end do
@@ -1165,7 +1166,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = fill
                         end do
@@ -1411,7 +1412,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = b(i)
                      end do
@@ -1421,7 +1422,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b)
+!$omp simd nontemporal(a,b) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = b(i)
                         end do
@@ -1440,7 +1441,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = b(i)
                      end do
@@ -1450,7 +1451,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i)
                         end do
@@ -1481,7 +1482,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i)
                         end do
@@ -1730,7 +1731,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = scale*b(i)
                      end do
@@ -1740,7 +1741,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b)
+!$omp simd nontemporal(a,b) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = scale*b(i)
                         end do
@@ -1759,7 +1760,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = scale*b(i)
                      end do
@@ -1769,7 +1770,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = scale*b(i)
                         end do
@@ -1800,7 +1801,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = scale*b(i)
                         end do
@@ -2048,7 +2049,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = b(i) + c(i)
                      end do
@@ -2058,7 +2059,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b,c)
+!$omp simd nontemporal(a,b,c) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = b(i) + c(i)
                         end do
@@ -2077,7 +2078,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = b(i) + c(i)
                      end do
@@ -2087,7 +2088,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i) + c(i)
                         end do
@@ -2118,7 +2119,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i) + c(i)
                         end do
@@ -2369,7 +2370,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = b(i) + scale*c(i)
                      end do
@@ -2379,7 +2380,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b,c)
+!$omp simd nontemporal(a,b,c) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = b(i) + scale*c(i)
                         end do
@@ -2398,7 +2399,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = b(i) + scale*c(i)
                      end do
@@ -2408,7 +2409,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i) + scale*c(i)
                         end do
@@ -2439,7 +2440,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i) + scale*c(i)
                         end do
@@ -2689,7 +2690,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = b(i) + c(i)*d(i)
                      end do
@@ -2699,7 +2700,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b,c,d)
+!$omp simd nontemporal(a,b,c,d) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = b(i) + c(i)*d(i)
                         end do
@@ -2718,7 +2719,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = b(i) + c(i)*d(i)
                      end do
@@ -2728,7 +2729,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c,d)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c,d) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i) + c(i)*d(i)
                         end do
@@ -2759,7 +2760,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i) + c(i)*d(i)
                         end do
@@ -3011,7 +3012,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = b(i)*c(i) + d(i)*e(i)
                      end do
@@ -3021,7 +3022,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b,c,d,e)
+!$omp simd nontemporal(a,b,c,d,e) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
@@ -3040,7 +3041,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = b(i)*c(i) + d(i)*e(i)
                      end do
@@ -3050,7 +3051,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c,d,e)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b,c,d,e) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
@@ -3081,7 +3082,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
@@ -3330,7 +3331,7 @@ contains
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd
+!$omp simd ${SIMDLEN}$
                      do i = istart, iend
                         a(i) = a(i) + scale*b(i)
                      end do
@@ -3340,7 +3341,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd nontemporal(a,b)
+!$omp simd nontemporal(a,b) ${SIMDLEN}$
                         do i = istart, iend
                            a(i) = a(i) + scale*b(i)
                         end do
@@ -3359,7 +3360,7 @@ contains
 
                   @:TYPE_IS(kernel_do_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) ${SIMDLEN}$
                      do i = 1, n
                         a(i) = a(i) + scale*b(i)
                      end do
@@ -3369,7 +3370,7 @@ contains
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_do_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b)
+!$omp do simd schedule(${SIMD_SCHEDULE}$) nontemporal(a,b) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = a(i) + scale*b(i)
                         end do
@@ -3400,7 +3401,7 @@ contains
                      @:TYPE_IS(kernel_taskloop_simd_t)
                      do it_sub = 1, options%it_per_timing
 !$omp single
-!$omp taskloop simd num_tasks(kernel%num_tasks)
+!$omp taskloop simd num_tasks(kernel%num_tasks) ${SIMDLEN}$
                         do i = 1, n
                            a(i) = a(i) + scale*b(i)
                         end do

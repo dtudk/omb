@@ -1,9 +1,13 @@
 #:include "common.fypp"
 
-! Dummy routines for calling stuff
+! Dummy routines for calling stuff. Hence 'value'
+! attribute to ensure it gets copied into the function
+! call.
+! It will never be called in a branch-statement
 #:for real in REALS
    subroutine dummy_${real}$ (v)
+!$omp declare simd notinbranch ${SIMDLEN}$
       use iso_fortran_env, only: ${real}$
-      real(${real}$), intent(in) :: v
+      real(${real}$), intent(in), value :: v
    end subroutine
 #:endfor

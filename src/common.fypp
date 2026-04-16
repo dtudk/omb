@@ -27,3 +27,9 @@
 #:else
    #:set SIMD_SCHEDULE = "runtime"
 #:endif
+
+#:if defined("OMB_OMP_SIMDLEN")
+   #:set SIMDLEN = "simdlen({})".format(OMB_OMP_SIMDLEN)
+#:else
+   #:set SIMDLEN = ""
+#:endif

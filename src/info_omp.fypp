@@ -241,6 +241,7 @@ contains
       end select
       write (OUTPUT_UNIT, FMT_i) "schedule_chunk", chunk
 
+      write (OUTPUT_UNIT, FMT_a) "simdlen", "${SIMDLEN}$"
       write (OUTPUT_UNIT, FMT_i) "max_task_priority", omp_get_max_task_priority()
 
       ! For >4.5 OpenMP

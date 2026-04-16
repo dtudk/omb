@@ -120,6 +120,13 @@ else()
 endif()
 
 
+set(OMB_SIMDLEN "" CACHE STRING
+  "Whether SIMD constructs should use SIMDLEN; any positive integer will do.")
+if(NOT "${OMB_SIMDLEN}" STREQUAL "" )
+  list(APPEND OMB_FYPP_FLAGS -DOMB_OMP_SIMDLEN="${OMB_SIMDLEN}")
+endif()
+
+
 # Generally we do not need the rt library.
 # However, it should provide extended runtime precision for timers.
 # For GCC this is implicitly linked when using OpenMP.
