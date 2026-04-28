@@ -96,6 +96,7 @@ module benchmarks_m
    integer, public, parameter :: METHOD_FALSE_SHARING_TETRADD = 10
    integer, public, parameter :: METHOD_PENTADD = 11
    integer, public, parameter :: METHOD_READ = 12
+   integer, public, parameter :: METHOD_FALSE_SHARING_PENTADD = 13
 
    #:for real in REALS
       public :: bench_read_${real}$
@@ -110,6 +111,7 @@ module benchmarks_m
       public :: bench_fill_${real}$
       public :: bench_false_sharing_triadd_${real}$
       public :: bench_false_sharing_tetradd_${real}$
+      public :: bench_false_sharing_pentadd_${real}$
    #:endfor
 
    public :: benchmark_interface
@@ -3849,6 +3851,213 @@ contains
          end if
 
          @:ARRAY_DEALLOC(a, b, c, d)
+
+      end subroutine
+
+      subroutine bench_false_sharing_pentadd_${real}$ (n, options, results)
+         use omp_lib, only: omp_get_thread_num
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_INT_KIND}$) :: i
+         integer :: id, it, it_sub, team, teams
+         type(timing_t) :: timing
+
+         #:if ARRAY_IS_STACK
+            real(${real}$), dimension(options%num_threads, n + options%offset) :: a, b, c, d, e
+         #:else
+            real(${real}$), dimension(:, :), ${OMB_ALLOC_TYPE}$ &
+               ${OMB_ARRAY_ATTRIBUTES}$ :: a, b, c, d, e
+         #:endif
+
+         #:if ARRAY_IS_POINTER
+            nullify (a, b, c, d, e)
+         #:endif
+
+         #:if not ARRAY_IS_STACK
+            allocate (a(options%num_threads, n + options%offset))
+            allocate (b(options%num_threads, n + options%offset))
+            allocate (c(options%num_threads, n + options%offset))
+            allocate (d(options%num_threads, n + options%offset))
+            allocate (e(options%num_threads, n + options%offset))
+         #:endif
+
+!$omp parallel
+         ! Direct call to omit interface constructs which has different shape
+         call init_array_${real}$ (options%num_threads*n, a, 0.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, b, 1.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, c, 2.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, d, 3.5_${real}$, options)
+         call init_array_${real}$ (options%num_threads*n, e, 3._${real}$, options)
+!$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a(:, 1:n)) - options%num_threads*n*0.5_${real}$
+         end if
+
+         select type (kernel => options%kernel)
+
+            #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+               type is (kernel_teams_manual_t)
+!$omp teams private(it,it_sub,i,team,id) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+               ! This kernel uses each teams main thread (only 1 thread per team)
+               team = omp_get_team_num()
+               id = team + 1
+
+               do it = 1, options%it
+
+                  @:START_TIMING(in_teams=1)
+                  do it_sub = 1, options%it_per_timing
+
+                     do i = 1, n
+                        a(id, i) = b(id, i)*c(id, i) + d(id, i)*e(id, i)
+                     end do
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
+               end do
+
+!$omp end teams
+
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (kernel_teams_distribute_t)
+!$omp teams private(it,it_sub,i,team,teams,id) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+                  ! This kernel uses each teams main thread (only 1 thread per team)
+                  team = omp_get_team_num()
+                  teams = omp_get_num_teams()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp distribute dist_schedule(static) private(i)
+                        do id = 1, teams
+                           do i = 1, n
+                              a(id, i) = b(id, i)*c(id, i) + d(id, i)*e(id, i)
+                           end do
+                        end do
+!$omp end distribute
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+
+                  type is (kernel_teams_distribute_do_t)
+!$omp teams private(it,it_sub,i,team,teams,id) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+                  ! This kernel uses each teams main thread (only 1 thread per team)
+                  team = omp_get_team_num()
+                  teams = omp_get_num_teams()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp distribute parallel do dist_schedule(static,1) private(i)
+                        do id = 1, teams
+                           do i = 1, n
+                              a(id, i) = b(id, i)*c(id, i) + d(id, i)*e(id, i)
+                           end do
+                        end do
+!$omp end distribute parallel do
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+               #:endif
+
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (kernel_teams_parallel_do_t)
+!$omp teams private(it,it_sub,i,team,id) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+                  ! This kernel uses one team, and then distributes
+                  ! threads in the team in the parallel
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp parallel private(i,id)
+                        id = omp_get_thread_num() + 1
+                        do i = 1, n
+                           a(id, i) = b(id, i)*c(id, i) + d(id, i)*e(id, i)
+                        end do
+!$omp end parallel
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+               #:endif
+            #:endif
+
+         class default
+
+!$omp parallel private(it,it_sub,i,id)
+
+            ! Get local thread-id
+            id = omp_get_thread_num() + 1
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(kernel_do_t)
+                  do it_sub = 1, options%it_per_timing
+
+                     ! To traverse everything, we don't need an OMP loop
+                     ! Each thread accesses its own space.
+                     do i = 1, n
+                        a(id, i) = b(id, i)*c(id, i) + d(id, i)*e(id, i)
+                     end do
+                  end do
+
+                  @:TYPE_IS(kernel_workshare_t)
+
+                  do it_sub = 1, options%it_per_timing
+                     a(id, :) = b(id, :)*c(id, :) + d(id, :)*e(id, :)
+                  end do
+
+               class default
+
+                  stop UNKNOWN_METHOD_STOP
+
+               end select
+
+               @:STOP_TIMING(results%times(it))
+
+            end do
+
+!$omp end parallel
+
+         end select
+
+         if (options%test) then
+            write (*, test_fmt) sum(a(:, 1:n)) - &
+               options%num_threads*n*(1.5_${real}$*2.5_${real}$+3*3.5_${real}$)
+         end if
+
+         @:ARRAY_DEALLOC(a, b, c, d, e)
 
       end subroutine
 

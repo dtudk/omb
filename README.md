@@ -189,7 +189,6 @@ OpenMP allows several ways to utilize parallelism.
 | `teams:manual`            | `!$omp teams` |
 | `teams:distribute`        | <pre>`!$omp teams`<br>`!$omp distribute`</pre> |
 | `teams:distribute:do`     | <pre>`!$omp teams`<br>`!$omp distribute parallel do`</pre> |
-| `teams:distribute:manual` | <pre>`!$omp teams`<br>`!$omp distribute parallel`</pre> |
 | `teams:parallel:do`       | <pre>`!$omp teams`<br>`!$omp parallel do`</pre> |
 | `teams:parallel:manual`   | <pre>`!$omp teams`<br>`!$omp parallel`</pre> |
 | `teams:parallel:loop`     | <pre>`!$omp teams`<br>`!$omp parallel loop`</pre> |
@@ -217,6 +216,7 @@ performance hit by using false-sharing access patterns (bad cache usage).
 | ---- | --------- |
 | `fs:triad` | `a = b + c*2` |
 | `fs:tetrad` | `a = b + c*d` |
+| `fs:pentad` | `a = b*c + d*e` |
 
 And there is a limited amount of kernels allowed because of the way
 it accesses the memory elements.

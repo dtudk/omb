@@ -294,6 +294,13 @@ program main
             results%info%reads = 3
             results%info%flop = 2
 
+         case ("fs:pentaadd", "fs:penta", "fs:pentadd", "fs:pentad")
+            method = METHOD_FALSE_SHARING_PENTADD
+            results%info%narrays = 5
+            results%info%stores = 1
+            results%info%reads = 4
+            results%info%flop = 3
+
          case ("-dtype")
 
             if (iarg >= nargs) then
@@ -625,6 +632,13 @@ program main
       results%info%N(2) = options%num_threads
 
       @:CASE_DTYPE_BENCHMARK(bench_false_sharing_tetradd)
+
+   case (METHOD_FALSE_SHARING_PENTADD)
+      method_str = "fs:pentad"
+
+      results%info%N(2) = options%num_threads
+
+      @:CASE_DTYPE_BENCHMARK(bench_false_sharing_pentadd)
 
    case default
 
@@ -1029,6 +1043,8 @@ contains
       write (OUTPUT_UNIT, fmt_koa) "false-sharing access."
       write (OUTPUT_UNIT, fmt_ka) "fs:tetrad -> a = b + c*d"
       write (OUTPUT_UNIT, fmt_koa) "false-sharing access."
+      write (OUTPUT_UNIT, fmt_ka) "fs:pentad -> a = b*c + d*e"
+      write (OUTPUT_UNIT, fmt_koa) "false-sharing access."
       write (OUTPUT_UNIT, fmt_nl)
       write (OUTPUT_UNIT, fmt_opt_a) "s/size/n", "the size of all arrays involved in the method"
       write (OUTPUT_UNIT, fmt_oa) "E.g. --size 2kB will allocate 2kB of memory."
@@ -1067,7 +1083,6 @@ contains
             write (OUTPUT_UNIT, fmt_ka) "teams:distribute -> abuse the teams distribute workshare clause"
             write (OUTPUT_UNIT, fmt_koa) "expect poor perf. due to bad teams distribution."
             write (OUTPUT_UNIT, fmt_ka) "teams:distribute:do -> abuse the teams distribute parallel do workshare clause"
-            write (OUTPUT_UNIT, fmt_ka) "teams:distribute:manual -> abuse the teams distribute parallel workshare clause"
          #:endif
       #:endif
       write (OUTPUT_UNIT, fmt_oa) " - serial -> for testing the serial performance"
