@@ -306,7 +306,6 @@ contains
                      do i = istart, iend
                         call dummy(a(i))
                      end do
-
                   end do
                   @:STOP_TIMING(results%times(it), in_teams=1)
 
@@ -380,6 +379,7 @@ contains
                         do i = istart, iend
                            call dummy(a(i))
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -455,6 +455,7 @@ contains
                      do i = istart, iend
                         call dummy(a(i))
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -464,6 +465,7 @@ contains
                         call dummy(a(i))
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -474,6 +476,7 @@ contains
                            call dummy(a(i))
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -572,7 +575,7 @@ contains
          integer :: it, it_sub, team
          type(timing_t) :: timing
 
-         real(${real}$) :: sum_a
+         real(${real}$) :: sum_a, sum_aa
          @:ARRAY_DEFINE(${real}$, n + options%offset, a)
 
 !$omp parallel
@@ -618,8 +621,8 @@ contains
                      do i = istart, iend
                         sum_a = sum_a + a(i)
                      end do
-
                   end do
+
                   @:STOP_TIMING(results%times(it), in_teams=1)
 
                end do
@@ -697,6 +700,7 @@ contains
                         do i = istart, iend
                            sum_a = sum_a + a(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -761,7 +765,7 @@ contains
 
          class default
 
-!$omp parallel private(it,it_sub,i,istart,iend)
+!$omp parallel private(it,it_sub,i,istart,iend,sum_aa)
             call manual_split(n, istart, iend)
 
             do it = 1, options%it
@@ -770,29 +774,52 @@ contains
 
                   @:TYPE_IS(kernel_manual_t)
                   do it_sub = 1, options%it_per_timing
+!$omp single
                      sum_a = 0._${real}$
+!$omp end single
+                     sum_aa = 0._${real}$
                      do i = istart, iend
-                        sum_a = sum_a + a(i)
+                        sum_aa = sum_aa + a(i)
                      end do
+!$omp atomic
+                     sum_a = sum_a + sum_aa
+!$omp end atomic
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
                   do it_sub = 1, options%it_per_timing
-!$omp simd reduction(+:sum_a) ${SIMDLEN}$
+!$omp single
+                     sum_a = 0._${real}$
+!$omp end single
+                     sum_aa = 0._${real}$
+!$omp simd reduction(+:sum_aa) ${SIMDLEN}$
                      do i = istart, iend
-                        sum_a = sum_a + a(i)
+                        sum_aa = sum_aa + a(i)
                      end do
 !$omp end simd
+!$omp atomic
+                     sum_a = sum_a + sum_aa
+!$omp end atomic
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
                      @:TYPE_IS(kernel_manual_simd_nontemporal_t)
                      do it_sub = 1, options%it_per_timing
-!$omp simd reduction(+:sum_a) nontemporal(a) ${SIMDLEN}$
+!$omp single
+                        sum_a = 0._${real}$
+!$omp end single
+                        sum_aa = 0._${real}$
+!$omp simd reduction(+:sum_aa) nontemporal(a) ${SIMDLEN}$
                         do i = istart, iend
-                           sum_a = sum_a + a(i)
+                           sum_aa = sum_aa + a(i)
                         end do
 !$omp end simd
+!$omp atomic
+                        sum_a = sum_a + sum_aa
+!$omp end atomic
+!$omp barrier
                      end do
                   #:endif
 
@@ -885,7 +912,7 @@ contains
          end select
 
          if (options%test) then
-            write (*, test_fmt) sum(a(1:n)) - n*0.5_${real}$
+            write (*, test_fmt) sum_a - n*0.5_${real}$
          end if
 
          @:ARRAY_DEALLOC(a)
@@ -1019,6 +1046,7 @@ contains
                         do i = istart, iend
                            a(i) = fill
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -1094,6 +1122,7 @@ contains
                      do i = istart, iend
                         a(i) = fill
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -1103,6 +1132,7 @@ contains
                         a(i) = fill
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -1113,6 +1143,7 @@ contains
                            a(i) = fill
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -1335,6 +1366,7 @@ contains
                         do i = istart, iend
                            a(i) = b(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -1410,6 +1442,7 @@ contains
                      do i = istart, iend
                         a(i) = b(i)
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -1419,6 +1452,7 @@ contains
                         a(i) = b(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -1429,6 +1463,7 @@ contains
                            a(i) = b(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -1654,6 +1689,7 @@ contains
                         do i = istart, iend
                            a(i) = scale*b(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -1729,6 +1765,7 @@ contains
                      do i = istart, iend
                         a(i) = scale*b(i)
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -1738,6 +1775,7 @@ contains
                         a(i) = scale*b(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -1748,6 +1786,7 @@ contains
                            a(i) = scale*b(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -1972,6 +2011,7 @@ contains
                         do i = istart, iend
                            a(i) = b(i) + c(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -2047,6 +2087,7 @@ contains
                      do i = istart, iend
                         a(i) = b(i) + c(i)
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -2056,6 +2097,7 @@ contains
                         a(i) = b(i) + c(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -2066,6 +2108,7 @@ contains
                            a(i) = b(i) + c(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -2293,6 +2336,7 @@ contains
                         do i = istart, iend
                            a(i) = b(i) + scale*c(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -2368,6 +2412,7 @@ contains
                      do i = istart, iend
                         a(i) = b(i) + scale*c(i)
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -2377,6 +2422,7 @@ contains
                         a(i) = b(i) + scale*c(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -2387,6 +2433,7 @@ contains
                            a(i) = b(i) + scale*c(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -2613,6 +2660,7 @@ contains
                         do i = istart, iend
                            a(i) = b(i) + c(i)*d(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -2688,6 +2736,7 @@ contains
                      do i = istart, iend
                         a(i) = b(i) + c(i)*d(i)
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -2697,6 +2746,7 @@ contains
                         a(i) = b(i) + c(i)*d(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -2707,6 +2757,7 @@ contains
                            a(i) = b(i) + c(i)*d(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -2935,6 +2986,7 @@ contains
                         do i = istart, iend
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -3010,6 +3062,7 @@ contains
                      do i = istart, iend
                         a(i) = b(i)*c(i) + d(i)*e(i)
                      end do
+!$omp barrier
                   end do
 
                   @:TYPE_IS(kernel_manual_simd_t)
@@ -3019,6 +3072,7 @@ contains
                         a(i) = b(i)*c(i) + d(i)*e(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -3029,6 +3083,7 @@ contains
                            a(i) = b(i)*c(i) + d(i)*e(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
@@ -3254,6 +3309,7 @@ contains
                         do i = istart, iend
                            a(i) = a(i) + scale*b(i)
                         end do
+!$omp barrier
                      end do
 
                      @:STOP_TIMING(results%times(it))
@@ -3338,6 +3394,7 @@ contains
                         a(i) = a(i) + scale*b(i)
                      end do
 !$omp end simd
+!$omp barrier
                   end do
 
                   #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
@@ -3348,6 +3405,7 @@ contains
                            a(i) = a(i) + scale*b(i)
                         end do
 !$omp end simd
+!$omp barrier
                      end do
                   #:endif
 
