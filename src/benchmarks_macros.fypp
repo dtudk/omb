@@ -1,0 +1,59 @@
+! Start timing fypp method
+! We have experienced some problems with single.
+! Say if the CPU is comprising a varying amount of
+! efficiency vs. performance cores, then the timings
+! can sometimes get negative... :(
+! By enforcing a particular thread to do the timing
+! we should remove this problem *fingers crossed*
+#:def START_TIMING(in_teams=0)
+   #:if in_teams == 0
+!$omp barrier
+!$omp ${OMB_OMP_MASKED}$
+      call timing%start()
+!$omp end ${OMB_OMP_MASKED}$
+   #:else
+      if (team == 0) then
+         call timing%start()
+      end if
+   #:endif
+#:enddef
+
+#:def STOP_TIMING(var, in_teams=0)
+   #:if in_teams == 0
+!$omp barrier
+!$omp ${OMB_OMP_MASKED}$
+   #:endif
+   call timing%stop(${var}$, options%it_per_timing)
+   #:if in_teams == 0
+!$omp end ${OMB_OMP_MASKED}$
+   #:endif
+#:enddef
+
+! Short for doing type-is AND start timing
+#:def TYPE_IS(name)
+   type is (${name}$)
+   @:START_TIMING()
+#:enddef
+
+! Since we allow multiple variations of array definitions.
+! The complexity is hidden in the ARRAY_DEFINE method.
+#:def ARRAY_DEFINE(dtype, size, *names)
+   #:for name in names
+      #:if ARRAY_IS_STACK
+         real(${dtype}$) :: ${name}$ (${size}$)
+      #:else
+         real(${dtype}$), ${OMB_ALLOC_TYPE}$ &
+            ${OMB_ARRAY_ATTRIBUTES}$ :: ${name}$ (:)
+      #:endif
+   #:endfor
+#:enddef ARRAY_DEFINE
+
+! Since we allow multiple variations of array definitions.
+! The complexity is hidden in the ARRAY_DEALLOC method.
+#:def ARRAY_DEALLOC(*names)
+   #:for name in names
+      #:if not ARRAY_IS_STACK
+         deallocate (${name}$)
+      #:endif
+   #:endfor
+#:enddef

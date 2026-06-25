@@ -1,0 +1,388 @@
+#:include "common.fypp"
+#:include "benchmarks_macros.fypp"
+
+module benchmarks_sum_m
+
+   #:if "real16" in REALS
+      use iso_fortran_env, only: real16
+   #:endif
+   use iso_fortran_env, only: real32, real64
+   #:if "real128" in REALS
+      use iso_fortran_env, only: real128
+   #:endif
+   use iso_fortran_env, only: ${OMB_INT_KIND}$
+
+   use omp_lib
+
+   use options_m
+   use results_m, only: results_t
+   use timing_m, only: timing_t
+   use benchmarks_helpers_m
+
+   implicit none
+   private
+
+   #:for real in REALS
+      public :: bench_sum_${real}$
+   #:endfor
+
+contains
+
+   #:for real in REALS
+
+      subroutine bench_sum_${real}$ (n, options, results)
+         integer(${OMB_INT_KIND}$), intent(in) :: n
+         type(options_t), intent(in):: options
+         type(results_t), intent(inout) :: results
+
+         integer(${OMB_INT_KIND}$) :: i, istart, iend
+         integer :: it, it_sub, team
+         type(timing_t) :: timing
+
+         real(${real}$) :: sum_a, sum_aa
+         @:ARRAY_DEFINE(${real}$, n + options%offset, a)
+
+!$omp parallel
+         call array_allocate(n, a, options)
+         call init_array(n, a, 0.5_${real}$, options)
+!$omp end parallel
+
+         if (options%test) then
+            write (*, test_fmt, advance="no") sum(a(1:n)) - n*0.5_${real}$
+         end if
+
+         select type (kernel => options%kernel)
+
+         type is (kernel_serial_t)
+
+            do it = 1, options%it
+               call timing%start()
+               do it_sub = 1, options%it_per_timing
+                  sum_a = 0._${real}$
+                  do i = 1, n
+                     sum_a = sum_a + a(i)
+                  end do
+               end do
+               call timing%stop(results%times(it), options%it_per_timing)
+            end do
+
+            #:if defined("OMB_OMP_TEAMS")
+               type is (kernel_teams_manual_t)
+!$omp teams private(it,it_sub,i,team,istart,iend) &
+!$omp&  num_teams(options%num_threads) thread_limit(1) &
+!$omp&  reduction(+:sum_a)
+               call manual_split(n, istart, iend, in_teams=.true.)
+
+               team = omp_get_team_num()
+
+               do it = 1, options%it
+
+                  @:START_TIMING(in_teams=1)
+
+                  do it_sub = 1, options%it_per_timing
+                     ! Since we are doing this options%it times, we have to 0
+                     sum_a = 0._${real}$
+                     do i = istart, iend
+                        sum_a = sum_a + a(i)
+                     end do
+                  end do
+
+                  @:STOP_TIMING(results%times(it), in_teams=1)
+
+               end do
+
+!$omp end teams
+
+               #:if defined("OMB_OMP_TEAMS_DISTRIBUTE")
+                  type is (kernel_teams_distribute_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(options%num_threads) thread_limit(1) &
+!$omp&  reduction(+:sum_a)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+                        sum_a = 0._${real}$
+!$omp distribute dist_schedule(static)
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end distribute
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+
+                  type is (kernel_teams_distribute_do_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(options%num_threads) thread_limit(1)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp distribute parallel do dist_schedule(static) &
+!$omp&  reduction(+:sum_a)
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end distribute parallel do
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+               #:endif
+
+               #:if defined("OMB_OMP_TEAMS_PARALLEL")
+                  type is (kernel_teams_parallel_manual_t)
+!$omp teams private(it,it_sub,i,istart,iend) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+!$omp parallel private(it,it_sub,i,istart,iend) &
+!$omp&  reduction(+:sum_a)
+                  call manual_split(n, istart, iend)
+
+                  do it = 1, options%it
+
+                     @:START_TIMING()
+                     do it_sub = 1, options%it_per_timing
+
+                        sum_a = 0._${real}$
+                        do i = istart, iend
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp barrier
+                     end do
+
+                     @:STOP_TIMING(results%times(it))
+
+                  end do
+!$omp end parallel
+
+!$omp end teams
+
+                  type is (kernel_teams_parallel_do_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp parallel do schedule(runtime) &
+!$omp&  reduction(+:sum_a)
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end parallel do
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+
+                  type is (kernel_teams_parallel_loop_t)
+!$omp teams private(it,it_sub,i,team) &
+!$omp&  num_teams(1) thread_limit(options%num_threads)
+
+                  team = omp_get_team_num()
+
+                  do it = 1, options%it
+
+                     @:START_TIMING(in_teams=1)
+                     do it_sub = 1, options%it_per_timing
+
+!$omp parallel
+!$omp loop reduction(+:sum_a)
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end loop
+!$omp end parallel
+                     end do
+
+                     @:STOP_TIMING(results%times(it), in_teams=1)
+
+                  end do
+
+!$omp end teams
+               #:endif
+            #:endif
+
+         class default
+
+!$omp parallel private(it,it_sub,i,istart,iend,sum_aa)
+            call manual_split(n, istart, iend)
+
+            do it = 1, options%it
+
+               select type (kernel => options%kernel)
+
+                  @:TYPE_IS(kernel_manual_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp single
+                     sum_a = 0._${real}$
+!$omp end single
+                     sum_aa = 0._${real}$
+                     do i = istart, iend
+                        sum_aa = sum_aa + a(i)
+                     end do
+!$omp atomic
+                     sum_a = sum_a + sum_aa
+!$omp end atomic
+!$omp barrier
+                  end do
+
+                  @:TYPE_IS(kernel_manual_simd_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp single
+                     sum_a = 0._${real}$
+!$omp end single
+                     sum_aa = 0._${real}$
+!$omp simd reduction(+:sum_aa) ${SIMDLEN}$
+                     do i = istart, iend
+                        sum_aa = sum_aa + a(i)
+                     end do
+!$omp end simd
+!$omp atomic
+                     sum_a = sum_a + sum_aa
+!$omp end atomic
+!$omp barrier
+                  end do
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_manual_simd_nontemporal_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp single
+                        sum_a = 0._${real}$
+!$omp end single
+                        sum_aa = 0._${real}$
+!$omp simd reduction(+:sum_aa) nontemporal(a) ${SIMDLEN}$
+                        do i = istart, iend
+                           sum_aa = sum_aa + a(i)
+                        end do
+!$omp end simd
+!$omp atomic
+                        sum_a = sum_a + sum_aa
+!$omp end atomic
+!$omp barrier
+                     end do
+                  #:endif
+
+                  @:TYPE_IS(kernel_do_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp do schedule(runtime) reduction(+:sum_a)
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
+!$omp end do
+                  end do
+
+                  @:TYPE_IS(kernel_do_simd_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a) ${SIMDLEN}$
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
+!$omp end do simd
+                  end do
+
+                  #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
+                     @:TYPE_IS(kernel_do_simd_nontemporal_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp do simd schedule(${SIMD_SCHEDULE}$) reduction(+:sum_a) &
+!$omp&  nontemporal(a) ${SIMDLEN}$
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end do simd
+                     end do
+                  #:endif
+
+                  @:TYPE_IS(kernel_workshare_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp workshare
+                     sum_a = sum(a(1:n))
+!$omp end workshare
+                  end do
+
+                  #:if defined("OMB_OMP_TASKLOOP")
+                     @:TYPE_IS(kernel_taskloop_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp single
+!$omp taskloop num_tasks(kernel%num_tasks) &
+!$omp&  reduction(+:sum_a)
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end taskloop
+!$omp end single nowait
+!$omp taskwait
+                     end do
+
+                     @:TYPE_IS(kernel_taskloop_simd_t)
+                     do it_sub = 1, options%it_per_timing
+!$omp single
+!$omp taskloop simd num_tasks(kernel%num_tasks) &
+!$omp&  reduction(+:sum_a) ${SIMDLEN}$
+                        do i = 1, n
+                           sum_a = sum_a + a(i)
+                        end do
+!$omp end taskloop simd
+!$omp end single nowait
+!$omp taskwait
+                     end do
+                  #:endif
+
+                  @:TYPE_IS(kernel_loop_t)
+                  do it_sub = 1, options%it_per_timing
+!$omp loop reduction(+:sum_a)
+                     do i = 1, n
+                        sum_a = sum_a + a(i)
+                     end do
+!$omp end loop
+                  end do
+
+               class default
+
+                  stop UNKNOWN_METHOD_STOP
+
+               end select
+
+               @:STOP_TIMING(results%times(it))
+
+            end do
+
+!$omp end parallel
+
+         end select
+
+         if (options%test) then
+            write (*, test_fmt) sum_a - n*0.5_${real}$
+         end if
+
+         @:ARRAY_DEALLOC(a)
+
+      end subroutine
+
+   #:endfor
+
+end module benchmarks_sum_m
