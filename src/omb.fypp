@@ -407,6 +407,23 @@ program main
                stop 4
             end if
 
+         case ("-simdlen")
+
+            if (iarg >= nargs) then
+               write (ERROR_UNIT, *) "Too few arguments, --simdlen has no argument"
+               stop 3
+            end if
+
+            ! Read next arg
+            iarg = iarg + 1
+            call read_and_check_next_arg(iarg, arg)
+
+            read (arg, *) options%simd_len
+            if (options%simd_len < 1) then
+               write (ERROR_UNIT, *) "The number of simd instructions must be larger than 0!"
+               stop 4
+            end if
+
          case ("-n", "-s")
 
             if (iarg >= nargs) then
@@ -984,6 +1001,10 @@ contains
       write (OUTPUT_UNIT, debug_fmt_a) "alloc_type", "${OMB_ALLOC_TYPE}$"
       write (OUTPUT_UNIT, debug_fmt_l) "first_touch", options%first_touch
       write (OUTPUT_UNIT, debug_fmt_i) "offset", options%offset
+
+      #:if defined("OMB_OMP_SIMD_SIMDLEN")
+         write (OUTPUT_UNIT, debug_fmt_i) "simdlen", options%simd_len
+      #:endif
       block
          integer(int64) :: all_ibytes
          real(real64) :: all_rbytes
@@ -1062,7 +1083,8 @@ contains
       write (OUTPUT_UNIT, fmt_ka) "manual -> use parallel clause, static manual split"
       write (OUTPUT_UNIT, fmt_ka) "manual:simd -> use parallel clause, static manual split with simd clause"
       #:if defined("OMB_OMP_SIMD_NONTEMPORAL")
-   write (OUTPUT_UNIT, fmt_oa) " - manual:simd+nontemporal -> use parallel clause, static manual split with simd nontemporal clause"
+         write (OUTPUT_UNIT, fmt_oa, advance='no') " - manual:simd+nontemporal -> "
+         write (OUTPUT_UNIT, '(a)') "use parallel clause, static manual split with simd nontemporal clause"
       #:endif
       write (OUTPUT_UNIT, fmt_ka) "loop -> use the parallel loop workshare clause"
       write (OUTPUT_UNIT, fmt_ka) "workshare -> use parallel workshare clause"
@@ -1125,6 +1147,10 @@ contains
       write (OUTPUT_UNIT, fmt_opt_a) "offset", "number of elements added to each array for offsetting allocations"
       write (OUTPUT_UNIT, fmt_oa) "The offset elements are not iterated."
       write (OUTPUT_UNIT, fmt_oa) "Default is 0 elements."
+      #:if defined("OMB_OMP_SIMD_SIMDLEN")
+         write (OUTPUT_UNIT, fmt_opt_a) "simdlen", "simd length"
+         write (OUTPUT_UNIT, fmt_oa) "Minimum number of elements for consecutive SIMD calls"
+      #:endif
       write (OUTPUT_UNIT, fmt_nl)
 
       write (OUTPUT_UNIT, fmt_opt_a) "threads", "number of threads used (supersedes OMP_NUM_TRHEADS)"

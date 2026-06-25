@@ -213,8 +213,12 @@ contains
          write (OUTPUT_UNIT, FMT_a) "proc_bind", "false"
       case (OMP_PROC_BIND_TRUE)
          write (OUTPUT_UNIT, FMT_a) "proc_bind", "true"
-      case (OMP_PROC_BIND_MASTER)
-         write (OUTPUT_UNIT, FMT_a) "proc_bind", "master"
+         #:if defined("OMB_OMP_PROC_BIND_PRIMARY")
+            case (OMP_PROC_BIND_PRIMARY)
+         #:else
+            case (OMP_PROC_BIND_MASTER)
+         #:endif
+         write (OUTPUT_UNIT, FMT_a) "proc_bind", "primary"
       case (OMP_PROC_BIND_CLOSE)
          write (OUTPUT_UNIT, FMT_a) "proc_bind", "close"
       case (OMP_PROC_BIND_SPREAD)

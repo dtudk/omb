@@ -11,6 +11,7 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES OpenMP::OpenMP_Fortran)
 message(STATUS "OpenMP fortran")
 list(APPEND CMAKE_MESSAGE_INDENT "  ")
 
+
 # Print out information related to the Fortran standard
 cmake_print_variables(OpenMP_Fortran_SPEC_DATE)
 cmake_print_variables(OpenMP_Fortran_VERSION)
@@ -54,6 +55,17 @@ if( f_omp_partition )
   list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PARTITION")
 endif()
 
+CHECK_START("* has proc-bind-primary value (5.1)")
+set(source "
+use omp_lib, only: omp_proc_bind_primary
+print * , omp_proc_bind_primary
+end")
+check_fortran_source_compiles("${source}" f_omp_proc_bind_primary SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_proc_bind_primary )
+if( f_omp_proc_bind_primary )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_PROC_BIND_PRIMARY")
+endif()
+
 CHECK_START("* has masked construct (5.1)")
 set(source "
 use omp_lib
@@ -65,6 +77,25 @@ print * , omp_get_num_threads()
 end")
 check_fortran_source_compiles("${source}" f_omp_masked SRC_EXT f90)
 CHECK_PASS_FAIL( f_omp_masked )
+
+CHECK_START("* has simd simdlen modifier (4.0)")
+set(source "
+use omp_lib
+real :: a(10)
+integer :: i
+!$omp parallel
+!$omp do simd simdlen(8)
+do i = 1, 10
+   a(i) = 0.0
+end do
+!$omp end do simd
+!$omp end parallel
+end")
+check_fortran_source_compiles("${source}" f_omp_simd_simdlen SRC_EXT f90)
+CHECK_PASS_FAIL( f_omp_simd_simdlen )
+if( f_omp_simd_simdlen )
+  list(APPEND OMB_FYPP_FLAGS "-DOMB_OMP_SIMD_SIMDLEN")
+endif()
 
 CHECK_START("* has schedule simd modifier (4.5)")
 set(source "

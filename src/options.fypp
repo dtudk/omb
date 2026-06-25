@@ -24,6 +24,8 @@ module options_m
       integer(${OMB_INT_KIND}$) :: offset = 0
       !< Number of threads maximal available. Mainly used for special benchmarks
       integer :: num_threads = 1
+      !< Simd-length if available.
+      integer :: simd_len = 8
 
       !< Whether we should print-out debug info
       logical :: debug = .false.
@@ -307,6 +309,8 @@ contains
                allocate (kernel_teams_parallel_loop_t::this)
             #:endif
          #:endif
+      case default
+         stop 1
       end select
 
    end subroutine

@@ -28,8 +28,8 @@
    #:set SIMD_SCHEDULE = "runtime"
 #:endif
 
-#:if defined("OMB_OMP_SIMDLEN")
-   #:set SIMDLEN = "simdlen({})".format(OMB_OMP_SIMDLEN)
+#:if defined("OMB_OMP_SIMD_SIMDLEN")
+   #:set SIMDLEN = "simdlen(options%simd_len)"
 #:else
    #:set SIMDLEN = ""
 #:endif

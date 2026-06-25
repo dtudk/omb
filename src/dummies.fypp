@@ -6,7 +6,7 @@
 ! It will never be called in a branch-statement
 #:for real in REALS
    subroutine dummy_${real}$ (v)
-!$omp declare simd notinbranch ${SIMDLEN}$
+!$omp declare simd notinbranch
       use iso_fortran_env, only: ${real}$
       real(${real}$), intent(in), value :: v
    end subroutine
